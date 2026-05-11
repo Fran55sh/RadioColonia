@@ -1,16 +1,32 @@
-# Stack Coolify: `web` (Next) y `migrate` (drizzle-kit push) en el mismo repo.
+# Stack Coolify: Postgres + web + migrate (mismo compose, DNS estable).
 #
-# La web NO depende de `migrate`: el deploy no se bloquea si la introspección falla.
+# El host de base de datos es siempre el nombre del servicio: `postgres:5432`.
+# Definí en Coolify (o `.env`) al menos `POSTGRES_PASSWORD` fuerte; opcionalmente
+# `POSTGRES_USER`, `POSTGRES_DB`.
 #
-# Despliegue habitual (Coolify / `docker compose up -d`): solo levanta `web` (perfil por defecto).
-# Migraciones (manual o job aparte), con el mismo `.env` del stack:
+# `web` no depende de `migrate`; sí espera a que Postgres esté healthy.
+# Migraciones (perfil `migrate`):
 #   docker compose -f docker-compose.coolify.yml --env-file .env --profile migrate run --rm migrate
-#
-# Si tu UI no pasa `--profile migrate`, el servicio `migrate` no arranca en el up normal.
 
 name: radiocolonia-coolify
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
+      POSTGRES_DB: ${POSTGRES_DB:-db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   migrate:
     profiles:
       - migrate
@@ -20,7 +36,10 @@ services:
       target: migrator
     restart: "no"
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-pass}@postgres:5432/${POSTGRES_DB:-db}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   web:
     build:
@@ -33,7 +52,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-pass}@postgres:5432/${POSTGRES_DB:-db}
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_URL: ${AUTH_URL}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
@@ -43,6 +62,10 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
     volumes:
       - radiocolonia_uploads:/app/public/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
+  postgres_data:
   radiocolonia_uploads:

@@ -49,32 +49,31 @@ Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`**
 
 En la **raíz del repo**: [`docker-compose.coolify.yml`](../../docker-compose.coolify.yml).
 
-- **`web`**: stage **`runner`**, puerto **3000**, volumen **`radiocolonia_uploads`** → `/app/public/uploads`. **No** depende de `migrate`; el sitio puede desplegarse aunque las migraciones fallen o no se hayan corrido todavía.
-- **`migrate`**: stage **`migrator`**, `npx drizzle-kit push --verbose --force`. Está bajo el perfil Compose **`migrate`**: **no** se ejecuta en un `docker compose up -d` normal, así el deploy no queda bloqueado por introspección / push.
+- **`postgres`**: `postgres:16-alpine`, volumen **`postgres_data`**. La app usa el hostname estable **`postgres`** en la red del compose (`postgres:5432`). No necesitás un recurso PostgreSQL externo de Coolify para este stack.
+- **`DATABASE_URL`** para `web` y `migrate` se construye con `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (por defecto `postgres` / `pass` / `db` si no definís nada). En producción definí **`POSTGRES_PASSWORD` fuerte** en el stack.
+- **`web`**: `depends_on` **`postgres`** (`service_healthy`); **no** depende de `migrate`. Puerto **3000**, volumen **`radiocolonia_uploads`**.
+- **`migrate`**: perfil **`migrate`**, mismo `DATABASE_URL` interno; espera Postgres healthy.
 
 **Migraciones (paso aparte)**
-
-En el servidor (o build container de Coolify con acceso al compose y al `.env` del stack):
 
 ```bash
 docker compose -f docker-compose.coolify.yml --env-file /ruta/al/.env --profile migrate run --rm migrate
 ```
 
-(Ajustá `--env-file` a donde Coolify guarda las variables del recurso, o exportá `DATABASE_URL` antes.)
-
-También podés usar un job one-shot en Coolify con el mismo `Dockerfile` y target `migrator`, o `drizzle-kit push` desde tu PC contra la misma `DATABASE_URL`.
+(O `drizzle-kit push` desde tu PC usando la misma URL `postgresql://…@postgres:5432/…` solo si tenés red hasta ese Postgres; en el servidor suele ser el comando anterior.)
 
 **En Coolify**
 
-1. Recurso **Docker Compose** apuntando a **`docker-compose.coolify.yml`** en la raíz.
-2. Variables del stack: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`, `MP_*`, etc.
-3. Dominio solo en **`web`**.
+1. Recurso **Docker Compose** → **`docker-compose.coolify.yml`** en la raíz.
+2. Variables: al menos `POSTGRES_PASSWORD`, `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`; opcional `POSTGRES_USER`, `POSTGRES_DB`. **No** hace falta `DATABASE_URL` si usás solo el Postgres del compose (la URL la arma el archivo).
+3. Contraseñas con caracteres reservados en URLs (`@`, `#`, …) pueden romper la cadena: evitalos o codificá.
+4. Dominio solo en **`web`**.
 
 **Importante**
 
-- **No** enlaces el arranque de Next a migraciones (`depends_on migrate`).
-- **No** uses Post-deployment del servicio `web` para `drizzle-kit`.
-- El stage **`migrator`** usa **`--force`**: revisá cambios de `schema.ts` en producción con datos reales.
+- **No** uses `depends_on migrate` en `web`.
+- **No** uses Post-deployment de `web` para `drizzle-kit`.
+- El stage **`migrator`** usa **`--force`**: revisá `schema.ts` con datos reales.
 
 ### Alternativa: dos aplicaciones Dockerfile
 
@@ -89,10 +88,8 @@ Podés seguir usando solo la app **Dockerfile** + target final `runner`. En ese 
 
 ### Variables de entorno (referencia)
 
-- `DATABASE_URL` — Postgres (red interna Coolify, no `127.0.0.1:5433` de desarrollo).
-- `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL` — Auth.js y URLs públicas HTTPS.
-- `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` — Mercado Pago en producción.
-- `ADMIN_EMAIL`, `ADMIN_PASSWORD` — solo para `db:seed` local o one-off.
+- **Compose Coolify embebido**: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (opcionales salvo contraseña fuerte en prod); `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`; `MP_*`; `ADMIN_*` para seed.
+- **Postgres externo / dev local**: `DATABASE_URL` (p. ej. `127.0.0.1:5433` en este repo con Docker de desarrollo).
 
 **Build argument**: `NEXT_PUBLIC_APP_URL` debe coincidir con la URL pública en el cliente (Coolify suele inyectar build args desde las variables del stack).
 
@@ -108,17 +105,17 @@ Las páginas que usan `@/db` están declaradas como **`dynamic = "force-dynamic"
 
 La página principal consulta la base (**categorías y productos**). Si falla la DB, verás **500**.
 
-1. Abrí **`https://tu-dominio.com/api/health`** (o `/api/health` con tu URL). Debe responder JSON `{"ok":true,"db":"up"}`. Si dice `DATABASE_URL is not set` o `database_unreachable`, revisá la variable y que el contenedor web alcance el host de Postgres (en Coolify, hostname interno del servicio Postgres, no `127.0.0.1` de tu PC).
-2. Con **Compose Coolify**, el esquema **no** corre en el deploy por defecto: usá **`docker compose ... --profile migrate run --rm migrate`** (u otro job) cuando el problema sea “tablas faltantes”. Si desplegás solo Dockerfile, usá target `migrator` o `drizzle-kit push` desde tu PC.
+1. Abrí **`https://tu-dominio.com/api/health`**. Si falla la DB, revisá que **`postgres`** del compose esté `healthy` y que `POSTGRES_*` coincidan con la URL interna (host **`postgres`**).
+2. Con **Compose Coolify** embebido, aplicá esquema con **`--profile migrate run --rm migrate`** cuando haga falta; hasta tener tablas, la home puede dar **500**.
 3. Revisá los logs del contenedor en Coolify para el stack trace real.
-4. Si ves **`ECONNREFUSED 127.0.0.1:5433`**, copiaste el `DATABASE_URL` de desarrollo. En Coolify tenés que reemplazarlo por la URL interna al servicio Postgres (**host** = nombre en la red Docker de Coolify, **puerto** = **5432**, no `5433`). El `5433` solo es el mapeo en tu PC cuando levantás `docker-compose.yml` de desarrollo.
+4. Si ves **`ECONNREFUSED 127.0.0.1:5433`**, es la URL de desarrollo local; en el compose Coolify el host debe ser **`postgres`** (servicio del mismo archivo), no `127.0.0.1`.
 
 ---
 
 ## Checklist rápido
 
 - [ ] **Coolify Compose**: `docker-compose.coolify.yml`; **`web`** sin `depends_on` a `migrate`; migraciones con perfil `migrate` o job aparte.
-- [ ] Postgres con `DATABASE_URL` correcta.
+- [ ] **Postgres embebido** en `docker-compose.coolify.yml` o DB externa coherente con `DATABASE_URL`.
 - [ ] `AUTH_URL` y `NEXT_PUBLIC_APP_URL` = URL HTTPS real.
 - [ ] Esquema aplicado cuando toque (`--profile migrate run --rm migrate`, job `migrator`, o `drizzle-kit` desde tu PC).
 - [ ] `db:seed` solo si querés datos iniciales / admin.
