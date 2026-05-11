@@ -1,0 +1,11 @@
+# Contexto raíz: solo hace falta app/ para la imagen web
+UXUI/
+node_modules/
+.git/
+.gitignore
+**/.DS_Store
+
+app/node_modules/
+app/.next/
+app/out/
+app/coverage/

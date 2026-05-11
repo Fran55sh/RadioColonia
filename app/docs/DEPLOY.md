@@ -45,23 +45,22 @@ Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`**
 
 ## Coolify
 
-1. **Repositorio**: si el git root es `Radio Colonia/` y el código Next está en `app/`, configurá **Base Directory / Root Directory** = `app` (o el path que corresponda).
-2. **Dockerfile**: ruta `app/Dockerfile` (o `Dockerfile` si la raíz del build ya es `app`).
-3. **Puerto del contenedor**: **3000** (Coolify puede publicar 443/80 en el proxy; no confundir con el puerto interno).
-4. **Variables de entorno** (mínimo):
+1. **Dockerfile / contexto**: en la raíz del repo hay un **`Dockerfile`** que incluye `app/`. En Coolify podés dejar la base en la raíz y **Dockerfile** = `Dockerfile`. Si preferís **Base Directory** = `app`, usá el `Dockerfile` dentro de `app/` y contexto solo en esa carpeta.
+2. **Puerto del contenedor**: **3000** (Coolify puede publicar 443/80 en el proxy; no confundir con el puerto interno).
+3. **Variables de entorno** (mínimo):
    - `DATABASE_URL` — Postgres que provisiones en Coolify (host interno de red, no `127.0.0.1` del contenedor web).
    - `AUTH_SECRET` — cadena larga aleatoria.
    - `AUTH_URL` — `https://tu-dominio.com` (URL pública exacta).
    - `NEXT_PUBLIC_APP_URL` — igual que la pública.
    - `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` — producción cuando toque.
    - `ADMIN_EMAIL`, `ADMIN_PASSWORD` — solo si corrés `db:seed`.
-5. **Build argument** (opcional): `NEXT_PUBLIC_APP_URL=https://tu-dominio.com` para que quede fijada en el bundle del cliente.
-6. **Post-deploy / comando único** (recomendado tras el primer deploy o cambios de schema):
+4. **Build argument** (opcional): `NEXT_PUBLIC_APP_URL=https://tu-dominio.com` para que quede fijada en el bundle del cliente.
+5. **Post-deploy / comando único** (recomendado tras el primer deploy o cambios de schema):
    ```bash
    npx drizzle-kit push
    ```
    Ejecutalo en el mismo servicio con las mismas variables, o desde tu PC apuntando al `DATABASE_URL` de producción.
-7. **Mercado Pago**: webhook → `https://tu-dominio.com/api/webhooks/mercadopago`.
+6. **Mercado Pago**: webhook → `https://tu-dominio.com/api/webhooks/mercadopago`.
 
 ---
 
