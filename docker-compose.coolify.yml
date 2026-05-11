@@ -1,0 +1,52 @@
+# Stack para Coolify: el servicio `migrate` ejecuta `npx drizzle-kit push` (stage `migrator`)
+# y termina; `web` arranca solo si `migrate` sale con código 0.
+#
+# En Coolify: crear recurso **Docker Compose** en el proyecto, rama `main`, archivo
+# `docker-compose.coolify.yml` en la raíz del repo (sin Base Directory en app, o
+# según indique la UI para el path del compose).
+# Definir las variables del stack (igual que la app): como mínimo `DATABASE_URL`,
+# `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`, etc.
+#
+# Requiere Docker Compose **v2** (`service_completed_successfully`).
+# Prueba local:
+#   docker compose -f docker-compose.coolify.yml --env-file ruta/.env up --build
+
+name: radiocolonia-coolify
+
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    restart: "no"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      AUTH_URL: ${AUTH_URL:?AUTH_URL is required}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+    volumes:
+      - radiocolonia_uploads:/app/public/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  radiocolonia_uploads:
