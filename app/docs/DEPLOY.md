@@ -69,6 +69,7 @@ La página principal consulta la base (**categorías y productos**). Si falla la
 1. Abrí **`https://tu-dominio.com/api/health`** (o `/api/health` con tu URL). Debe responder JSON `{"ok":true,"db":"up"}`. Si dice `DATABASE_URL is not set` o `database_unreachable`, revisá la variable y que el contenedor web alcance el host de Postgres (en Coolify, hostname interno del servicio Postgres, no `127.0.0.1` de tu PC).
 2. Ejecutá **`npx drizzle-kit push`** contra la misma base de producción si aún no aplicaste el esquema (sin tablas, las queries fallan).
 3. Revisá los logs del contenedor en Coolify para el stack trace real.
+4. Si ves **`ECONNREFUSED 127.0.0.1:5433`**, copiaste el `DATABASE_URL` de desarrollo. En Coolify tenés que reemplazarlo por la URL interna al servicio Postgres (**host** = nombre en la red Docker de Coolify, **puerto** = **5432**, no `5433`). El `5433` solo es el mapeo en tu PC cuando levantás `docker-compose.yml` de desarrollo.
 
 ---
 
