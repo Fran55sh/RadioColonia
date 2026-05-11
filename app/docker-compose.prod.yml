@@ -1,0 +1,79 @@
+# Stack local de prueba (producción). Puerto host **3001** → contenedor 3000 (evita choque con otra app en 8000).
+#
+# Uso:
+#   cd app
+#   cp .env.example .env.production.local   # editar DATABASE_URL al servicio postgres de red Docker
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Migraciones: ejecutar una vez contra la misma DB:
+#   docker compose -f docker-compose.prod.yml run --rm web sh -c "npx drizzle-kit push"
+#   (o desde tu máquina con DATABASE_URL apuntando al contenedor postgres)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: radiocolonia_postgres_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-radiocolonia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-radiocolonia_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-radiocolonia_db}
+    volumes:
+      - radiocolonia_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-radiocolonia} -d ${POSTGRES_DB:-radiocolonia_db}"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - internal
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3001}
+    container_name: radiocolonia_web
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-radiocolonia}:${POSTGRES_PASSWORD:-radiocolonia_secret}@postgres:5432/${POSTGRES_DB:-radiocolonia_db}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL:-http://localhost:3001}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3001}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+    volumes:
+      - radiocolonia_uploads:/app/public/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # One-off: docker compose -f docker-compose.prod.yml run --rm migrate
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-radiocolonia}:${POSTGRES_PASSWORD:-radiocolonia_secret}@postgres:5432/${POSTGRES_DB:-radiocolonia_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+volumes:
+  radiocolonia_pgdata:
+  radiocolonia_uploads:
+
+networks:
+  internal:
+    driver: bridge

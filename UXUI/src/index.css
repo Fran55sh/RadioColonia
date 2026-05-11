@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/outfit/600.css";
+@import "@fontsource/outfit/700.css";
+
+/* Electronics Store Design System - Orange, Silver, White, Black */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 8%;
+
+    --card: 0 0% 98%;
+    --card-foreground: 0 0% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 8%;
+
+    /* Orange primary - vibrant tech orange */
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Silver/metallic secondary */
+    --secondary: 210 10% 92%;
+    --secondary-foreground: 0 0% 15%;
+
+    --muted: 210 10% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    /* Accent - darker orange for hover states */
+    --accent: 24 90% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 10% 90%;
+    --input: 210 10% 90%;
+    --ring: 24 95% 53%;
+
+    --radius: 0.75rem;
+
+    /* Custom colors */
+    --silver: 210 10% 75%;
+    --silver-light: 210 10% 92%;
+    --charcoal: 0 0% 15%;
+    --midnight: 0 0% 8%;
+
+    /* Gradients */
+    --gradient-orange: linear-gradient(135deg, hsl(24 95% 53%) 0%, hsl(35 95% 55%) 100%);
+    --gradient-dark: linear-gradient(180deg, hsl(0 0% 12%) 0%, hsl(0 0% 8%) 100%);
+    --gradient-silver: linear-gradient(180deg, hsl(210 10% 96%) 0%, hsl(210 10% 92%) 100%);
+    --gradient-metallic: linear-gradient(135deg, hsl(210 10% 85%) 0%, hsl(210 10% 70%) 50%, hsl(210 10% 85%) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 2px 8px -2px hsl(0 0% 0% / 0.08);
+    --shadow-md: 0 8px 24px -8px hsl(0 0% 0% / 0.12);
+    --shadow-lg: 0 16px 48px -12px hsl(0 0% 0% / 0.2);
+    --shadow-orange: 0 8px 32px -8px hsl(24 95% 53% / 0.35);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 15%;
+    --sidebar-primary: 24 95% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 10% 95%;
+    --sidebar-accent-foreground: 0 0% 15%;
+    --sidebar-border: 210 10% 90%;
+    --sidebar-ring: 24 95% 53%;
+  }
+
+  .dark {
+    --background: 0 0% 6%;
+    --foreground: 0 0% 95%;
+
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 24 95% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+
+    --accent: 24 90% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 24 95% 55%;
+
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 24 95% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 24 95% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: "Outfit", sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-gradient-orange {
+    background: var(--gradient-orange);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-gradient-orange {
+    background: var(--gradient-orange);
+  }
+
+  .bg-gradient-dark {
+    background: var(--gradient-dark);
+  }
+
+  .bg-gradient-silver {
+    background: var(--gradient-silver);
+  }
+
+  .shadow-orange {
+    box-shadow: var(--shadow-orange);
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(210 10% 92%) 0%,
+      hsl(210 10% 98%) 50%,
+      hsl(210 10% 92%) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}

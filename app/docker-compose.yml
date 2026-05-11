@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: radio_colonia_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: radiocolonia
+      POSTGRES_PASSWORD: radiocolonia_secret
+      POSTGRES_DB: radiocolonia_db
+    ports:
+      # 5433 en el host: evita choque con otro PostgreSQL local en 5432
+      - "5433:5432"
+    volumes:
+      - radiocolonia_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U radiocolonia -d radiocolonia_db"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  radiocolonia_pgdata:

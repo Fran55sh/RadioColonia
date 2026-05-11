@@ -1,0 +1,30 @@
+# Dependencies & build cache
+node_modules
+.next
+out
+
+# Git & IDE
+.git
+.gitignore
+.cursor
+*.md
+!README.md
+
+# Env (inyectar en runtime: Coolify / compose)
+.env
+.env.*
+!.env.example
+
+# Dev-only
+docker-compose*.yml
+Dockerfile*
+!Dockerfile
+
+# Logs & OS
+npm-debug.log*
+.DS_Store
+coverage
+*.tsbuildinfo
+
+# Drizzle (no hace falta en runtime salvo migraciones manuales)
+# src/db/migrations
