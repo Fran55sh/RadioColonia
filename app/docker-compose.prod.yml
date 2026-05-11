@@ -2,12 +2,12 @@
 #
 # Uso:
 #   cd app
-#   cp .env.example .env.production.local   # editar DATABASE_URL al servicio postgres de red Docker
+#   cp .env.example .env.production.local   # editar DB_HOST, DB_USER, etc.
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
 # Migraciones: ejecutar una vez contra la misma DB:
 #   docker compose -f docker-compose.prod.yml run --rm web sh -c "npx drizzle-kit push"
-#   (o desde tu máquina con DATABASE_URL apuntando al contenedor postgres)
+#   (o desde tu máquina con las mismas DB_* que el compose)
 
 services:
   postgres:
@@ -15,13 +15,13 @@ services:
     container_name: radiocolonia_postgres_prod
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-radiocolonia}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-radiocolonia_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-radiocolonia_db}
+      POSTGRES_USER: ${DB_USER:-radiocolonia}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-radiocolonia_secret}
+      POSTGRES_DB: ${DB_NAME:-radiocolonia_db}
     volumes:
       - radiocolonia_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-radiocolonia} -d ${POSTGRES_DB:-radiocolonia_db}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 3s
       timeout: 5s
       retries: 10
@@ -40,7 +40,11 @@ services:
     ports:
       - "3001:3000"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-radiocolonia}:${POSTGRES_PASSWORD:-radiocolonia_secret}@postgres:5432/${POSTGRES_DB:-radiocolonia_db}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_USER: ${DB_USER:-radiocolonia}
+      DB_PASSWORD: ${DB_PASSWORD:-radiocolonia_secret}
+      DB_NAME: ${DB_NAME:-radiocolonia_db}
+      DB_PORT: ${DB_PORT:-5432}
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
       AUTH_URL: ${AUTH_URL:-http://localhost:3001}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3001}
@@ -63,7 +67,11 @@ services:
       dockerfile: Dockerfile
       target: migrator
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-radiocolonia}:${POSTGRES_PASSWORD:-radiocolonia_secret}@postgres:5432/${POSTGRES_DB:-radiocolonia_db}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_USER: ${DB_USER:-radiocolonia}
+      DB_PASSWORD: ${DB_PASSWORD:-radiocolonia_secret}
+      DB_NAME: ${DB_NAME:-radiocolonia_db}
+      DB_PORT: ${DB_PORT:-5432}
     depends_on:
       postgres:
         condition: service_healthy

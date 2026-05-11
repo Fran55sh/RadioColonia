@@ -16,7 +16,7 @@ Después de eso, usá los comandos de esta guía (Docker, `npm`, `cp`, etc.).
 
 ### Producción (Docker / Coolify)
 
-Hay **`Dockerfile`**, **`docker-compose.prod.yml`** (web en host **3001** → contenedor **3000**) y la guía **[docs/DEPLOY.md](docs/DEPLOY.md)** con variables y migraciones.
+Hay **`Dockerfile`**, **`docker-compose.prod.yml`** (web en host **3001** → contenedor **3000**) y la guía **[docs/DEPLOY.md](docs/DEPLOY.md)**. En producción la conexión a Postgres usa variables **`DB_HOST`**, **`DB_USER`**, **`DB_PASSWORD`**, **`DB_NAME`**, **`DB_PORT`** (no `DATABASE_URL`).
 
 ---
 
@@ -75,7 +75,11 @@ cp .env.example .env.local
 Editá `.env.local` con tus valores:
 
 ```env
-DATABASE_URL="postgresql://radiocolonia:radiocolonia_secret@127.0.0.1:5433/radiocolonia_db"
+DB_HOST=127.0.0.1
+DB_PORT=5433
+DB_USER=radiocolonia
+DB_PASSWORD=radiocolonia_secret
+DB_NAME=radiocolonia_db
 AUTH_SECRET="genera-una-clave-secreta-larga"    # openssl rand -base64 32
 AUTH_URL="http://localhost:3000"
 MP_ACCESS_TOKEN="TEST-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
@@ -93,7 +97,7 @@ docker compose up -d --wait
 
 (`--wait` espera a que Postgres pase el healthcheck antes de seguir; útil antes de `db:push`.)
 
-Si venías de una versión previa con otro usuario/clave de Postgres, actualizá `DATABASE_URL` en `.env.local` al valor de arriba **o** borrá el volumen y recreá: `docker compose down -v`, luego repetí los pasos desde el paso 3 (se pierden los datos locales de esa base).
+Si venías de una versión previa con otro usuario/clave de Postgres, actualizá **`DB_*`** en `.env.local` como arriba **o** borrá el volumen y recreá: `docker compose down -v`, luego repetí los pasos desde el paso 3 (se pierden los datos locales de esa base).
 
 ### 4. Instalar dependencias
 
@@ -118,21 +122,19 @@ npm run dev
 ### Problemas frecuentes
 
 **Puerto 5432 ya en uso**  
-Si ya tenés PostgreSQL u otro contenedor en el puerto 5432, este proyecto publica Postgres en **5433** (`5433:5432` en Docker). Usá en `.env.local`:
+Si ya tenés PostgreSQL u otro contenedor en el puerto 5432, este proyecto publica Postgres en **5433** (`5433:5432` en Docker). Usá en `.env.local` **`DB_PORT=5433`**, **`DB_HOST=127.0.0.1`** y el resto de `DB_*` como en `.env.example`.
 
-`DATABASE_URL="postgresql://radiocolonia:radiocolonia_secret@127.0.0.1:5433/radiocolonia_db"`
-
-**`drizzle-kit push`: "Either connection url or host are required"**  
-Las variables solo en `.env.local` no las leía Drizzle. Ya está resuelto: se cargan `.env` y `.env.local` al ejecutar `db:push` / `db:seed`. Volvé a correr `npm run db:push` desde `app/`.
+**`drizzle-kit push`: "Either connection url or host are required"** o error por variables de DB  
+Definí **`DB_HOST`**, **`DB_USER`**, **`DB_PASSWORD`**, **`DB_NAME`** (y **`DB_PORT`** si no es 5432). Se cargan `.env` y `.env.local` al ejecutar `db:push` / `db:seed`. Volvé a correr `npm run db:push` desde `app/`.
 
 **`db:push` se queda mucho tiempo en "Pulling schema from database..."**  
-Casí siempre es **Postgres caído** o **`DATABASE_URL` incorrecta** (usuario/clave vieja antes del rename, puerto ≠ 5433, o Docker apagado). Verificá con `docker compose ps` que el servicio esté `healthy`; en `.env.local` la URL debe coincidir con `docker-compose.yml` (usuario `radiocolonia`, puerto host **5433**).
+Casí siempre es **Postgres caído** o variables **`DB_*` incorrectas** (usuario/clave, puerto ≠ 5433 hacia el host, o Docker apagado). Verificá con `docker compose ps` que el servicio esté `healthy`; `DB_USER` y `DB_NAME` deben coincidir con `docker-compose.yml` (usuario `radiocolonia`, puerto host **5433** vía `DB_PORT`).
 
 **`password authentication failed for user radiocolonia"`**  
-Suele pasar si el contenedor no levantó y la app sigue apuntando a un Postgres distinto (otro usuario/clave). Asegurate de que `docker compose up -d` funcione y que `DATABASE_URL` use el **mismo puerto** que el mapeo del compose (5433 por defecto).
+Suele pasar si el contenedor no levantó y la app apunta a otro Postgres. Asegurate de que `docker compose up -d` funcione y que **`DB_PORT`** sea **5433** al conectar desde el host.
 
 **`ECONNREFUSED` al correr `db:seed` / la app**  
-- Asegurate de que `DATABASE_URL` use **puerto 5433** y, en Windows, preferí **`127.0.0.1`** en lugar de `localhost` (evita que Node intente solo IPv6).  
+- Usá **`DB_PORT=5433`** y **`DB_HOST=127.0.0.1`** desde el host (en Windows, preferí `127.0.0.1` antes que `localhost` por IPv6).  
 - Esperá unos segundos tras `docker compose up` o usá `docker compose up -d --wait`.
 
 **`Can't resolve 'tailwindcss' in '...\Radio Colonia'`**  

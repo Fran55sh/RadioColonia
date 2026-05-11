@@ -1,3 +1,4 @@
+import { getDatabaseUrl } from "./database-url"
 import { loadEnvFiles } from "./load-env"
 import { drizzle } from "drizzle-orm/node-postgres"
 import { hash } from "bcryptjs"
@@ -7,12 +8,13 @@ import { Pool } from "pg"
 
 loadEnvFiles()
 
-if (!process.env.DATABASE_URL?.trim()) {
-  console.error("❌ Falta DATABASE_URL. Creá .env.local en app/ (copiá .env.example) con el puerto correcto (5433 con Docker de este proyecto).")
+let pool: Pool
+try {
+  pool = new Pool({ connectionString: getDatabaseUrl() })
+} catch (e) {
+  console.error("❌", e instanceof Error ? e.message : e)
   process.exit(1)
 }
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const db = drizzle(pool, { schema })
 
 const categoriesData = [

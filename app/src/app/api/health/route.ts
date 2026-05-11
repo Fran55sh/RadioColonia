@@ -1,20 +1,22 @@
 import { NextResponse } from "next/server"
 import { sql } from "drizzle-orm"
-import { db } from "@/db"
+import { getDbEnvValidationError } from "@/db/database-url"
 
 /**
  * GET /api/health — diagnóstico en deploy (Coolify, etc.).
  * No exponer detalles sensibles en producción; solo ok / motivo.
  */
 export async function GET() {
-  if (!process.env.DATABASE_URL?.trim()) {
+  const envErr = getDbEnvValidationError()
+  if (envErr) {
     return NextResponse.json(
-      { ok: false, error: "DATABASE_URL is not set" },
+      { ok: false, error: "db_env_incomplete", detail: envErr },
       { status: 503 }
     )
   }
 
   try {
+    const { db } = await import("@/db")
     await db.execute(sql`select 1`)
     return NextResponse.json({ ok: true, db: "up" })
   } catch (e) {

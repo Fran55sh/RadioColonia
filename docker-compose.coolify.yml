@@ -1,12 +1,7 @@
-# Stack Coolify: Postgres + web + migrate (mismo compose, DNS estable).
+# Stack Coolify: Postgres + web + migrate. La app usa DB_HOST / DB_USER / DB_PASSWORD / DB_NAME / DB_PORT
+# (sin DATABASE_URL). DB_HOST lo define el entorno; en este stack por defecto apunta al servicio del compose.
 #
-# El host de base de datos es siempre el nombre del servicio: `postgres:5432`.
-# Definí en Coolify (o `.env`) al menos `POSTGRES_PASSWORD` fuerte; opcionalmente
-# `POSTGRES_USER`, `POSTGRES_DB`.
-#
-# `web` no depende de `migrate`; sí espera a que Postgres esté healthy.
-# Migraciones (perfil `migrate`):
-#   docker compose -f docker-compose.coolify.yml --env-file .env --profile migrate run --rm migrate
+# `web` no depende de `migrate`. Migraciones: --profile migrate run --rm migrate
 
 name: radiocolonia-coolify
 
@@ -15,9 +10,9 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
-      POSTGRES_DB: ${POSTGRES_DB:-db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-pass}
+      POSTGRES_DB: ${DB_NAME:-db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -36,7 +31,11 @@ services:
       target: migrator
     restart: "no"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-pass}@postgres:5432/${POSTGRES_DB:-db}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-pass}
+      DB_NAME: ${DB_NAME:-db}
+      DB_PORT: ${DB_PORT:-5432}
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,7 +51,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-pass}@postgres:5432/${POSTGRES_DB:-db}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-pass}
+      DB_NAME: ${DB_NAME:-db}
+      DB_PORT: ${DB_PORT:-5432}
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_URL: ${AUTH_URL}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
@@ -68,4 +71,4 @@ services:
 
 volumes:
   postgres_data:
-  radiocolonia-uploads:
+  radiocolonia_uploads:
