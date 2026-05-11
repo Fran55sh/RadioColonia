@@ -62,6 +62,14 @@ Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`**
    Ejecutalo en el mismo servicio con las mismas variables, o desde tu PC apuntando al `DATABASE_URL` de producción.
 6. **Mercado Pago**: webhook → `https://tu-dominio.com/api/webhooks/mercadopago`.
 
+### Error 500 en la home
+
+La página principal consulta la base (**categorías y productos**). Si falla la DB, verás **500**.
+
+1. Abrí **`https://tu-dominio.com/api/health`** (o `/api/health` con tu URL). Debe responder JSON `{"ok":true,"db":"up"}`. Si dice `DATABASE_URL is not set` o `database_unreachable`, revisá la variable y que el contenedor web alcance el host de Postgres (en Coolify, hostname interno del servicio Postgres, no `127.0.0.1` de tu PC).
+2. Ejecutá **`npx drizzle-kit push`** contra la misma base de producción si aún no aplicaste el esquema (sin tablas, las queries fallan).
+3. Revisá los logs del contenedor en Coolify para el stack trace real.
+
 ---
 
 ## Checklist rápido
