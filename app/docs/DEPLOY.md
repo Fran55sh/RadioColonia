@@ -45,25 +45,36 @@ Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`**
 
 ## Coolify
 
-### Recomendado: Docker Compose (migraciones antes que la web)
+### Docker Compose (`docker-compose.coolify.yml`)
 
-En la **raíz del repo** está [`docker-compose.coolify.yml`](../../docker-compose.coolify.yml):
+En la **raíz del repo**: [`docker-compose.coolify.yml`](../../docker-compose.coolify.yml).
 
-- Servicio **`migrate`**: construye el stage **`migrator`** del [`Dockerfile`](../../Dockerfile) y ejecuta `npx drizzle-kit push --verbose --force` (sin TTY en Coolify); termina con código 0 o falla el deploy.
-- Servicio **`web`**: stage **`runner`** (Next en el puerto **3000**), volumen **`radiocolonia_uploads`** en `/app/public/uploads`.
-- **`web` depende de `migrate`** con `condition: service_completed_successfully` (requiere **Docker Compose v2**).
+- **`web`**: stage **`runner`**, puerto **3000**, volumen **`radiocolonia_uploads`** → `/app/public/uploads`. **No** depende de `migrate`; el sitio puede desplegarse aunque las migraciones fallen o no se hayan corrido todavía.
+- **`migrate`**: stage **`migrator`**, `npx drizzle-kit push --verbose --force`. Está bajo el perfil Compose **`migrate`**: **no** se ejecuta en un `docker compose up -d` normal, así el deploy no queda bloqueado por introspección / push.
+
+**Migraciones (paso aparte)**
+
+En el servidor (o build container de Coolify con acceso al compose y al `.env` del stack):
+
+```bash
+docker compose -f docker-compose.coolify.yml --env-file /ruta/al/.env --profile migrate run --rm migrate
+```
+
+(Ajustá `--env-file` a donde Coolify guarda las variables del recurso, o exportá `DATABASE_URL` antes.)
+
+También podés usar un job one-shot en Coolify con el mismo `Dockerfile` y target `migrator`, o `drizzle-kit push` desde tu PC contra la misma `DATABASE_URL`.
 
 **En Coolify**
 
-1. Creá un recurso **Docker Compose** en tu proyecto y apuntalo al archivo **`docker-compose.coolify.yml`** en la raíz del repositorio (ruta relativa al clone: p. ej. `/docker-compose.coolify.yml` según la UI).
-2. Definí las **variables de entorno del stack** (las mismas que usarías para la app suelta). El compose exige como mínimo `DATABASE_URL`, `AUTH_SECRET` y `AUTH_URL`; también configurá `NEXT_PUBLIC_APP_URL`, `MP_*`, etc.
-3. **Postgres**: usá el `DATABASE_URL` interno del recurso PostgreSQL de Coolify (hostname de red Docker, puerto **5432**). Enlazá el servicio de base al proyecto si la UI lo pide, para que el hostname resuelva.
-4. Dominio / proxy: Coolify suele enrutar al servicio **`web`** (puerto 3000). Ajustá el mapeo de puertos en la UI si no usás el `3000:3000` del archivo.
+1. Recurso **Docker Compose** apuntando a **`docker-compose.coolify.yml`** en la raíz.
+2. Variables del stack: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`, `MP_*`, etc.
+3. Dominio solo en **`web`**.
 
 **Importante**
 
-- **No** uses **Post-deployment** en la aplicación Next para `drizzle-kit push`: el contenedor `runner` no está pensado para migraciones y mezcla responsabilidades.
-- Las migraciones ocurren solo en el contenedor **`migrate`** (mismo repo, mismo Dockerfile, target `migrator`). El stage usa **`--force`** para no quedar en prompts interactivos; puede auto-admitir cambios que Drizzle marque como destructivos — revisá `schema.ts` antes de desplegar en producción con datos reales.
+- **No** enlaces el arranque de Next a migraciones (`depends_on migrate`).
+- **No** uses Post-deployment del servicio `web` para `drizzle-kit`.
+- El stage **`migrator`** usa **`--force`**: revisá cambios de `schema.ts` en producción con datos reales.
 
 ### Alternativa: dos aplicaciones Dockerfile
 
@@ -98,7 +109,7 @@ Las páginas que usan `@/db` están declaradas como **`dynamic = "force-dynamic"
 La página principal consulta la base (**categorías y productos**). Si falla la DB, verás **500**.
 
 1. Abrí **`https://tu-dominio.com/api/health`** (o `/api/health` con tu URL). Debe responder JSON `{"ok":true,"db":"up"}`. Si dice `DATABASE_URL is not set` o `database_unreachable`, revisá la variable y que el contenedor web alcance el host de Postgres (en Coolify, hostname interno del servicio Postgres, no `127.0.0.1` de tu PC).
-2. Si usás **Docker Compose** (`docker-compose.coolify.yml`), el servicio **`migrate`** ya aplica el esquema antes de levantar `web`. Si desplegás solo la app Dockerfile, ejecutá `drizzle-kit push` con el target `migrator` o desde tu PC con el `DATABASE_URL` de producción.
+2. Con **Compose Coolify**, el esquema **no** corre en el deploy por defecto: usá **`docker compose ... --profile migrate run --rm migrate`** (u otro job) cuando el problema sea “tablas faltantes”. Si desplegás solo Dockerfile, usá target `migrator` o `drizzle-kit push` desde tu PC.
 3. Revisá los logs del contenedor en Coolify para el stack trace real.
 4. Si ves **`ECONNREFUSED 127.0.0.1:5433`**, copiaste el `DATABASE_URL` de desarrollo. En Coolify tenés que reemplazarlo por la URL interna al servicio Postgres (**host** = nombre en la red Docker de Coolify, **puerto** = **5432**, no `5433`). El `5433` solo es el mapeo en tu PC cuando levantás `docker-compose.yml` de desarrollo.
 
@@ -106,9 +117,9 @@ La página principal consulta la base (**categorías y productos**). Si falla la
 
 ## Checklist rápido
 
-- [ ] **Coolify Compose**: recurso con `docker-compose.coolify.yml` o equivalente (migrate → web).
-- [ ] Postgres accesible con `DATABASE_URL` correcta (host interno, puerto 5432).
+- [ ] **Coolify Compose**: `docker-compose.coolify.yml`; **`web`** sin `depends_on` a `migrate`; migraciones con perfil `migrate` o job aparte.
+- [ ] Postgres con `DATABASE_URL` correcta.
 - [ ] `AUTH_URL` y `NEXT_PUBLIC_APP_URL` = URL HTTPS real.
-- [ ] Esquema aplicado vía servicio **`migrate`** (o job `migrator`), no en Post-deploy del Next.
+- [ ] Esquema aplicado cuando toque (`--profile migrate run --rm migrate`, job `migrator`, o `drizzle-kit` desde tu PC).
 - [ ] `db:seed` solo si querés datos iniciales / admin.
-- [ ] Volumen persistente para `/app/public/uploads` en **`web`** (incluido en el compose Coolify).
+- [ ] Volumen persistente para `/app/public/uploads` en **`web`**.

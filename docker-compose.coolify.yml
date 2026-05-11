@@ -1,27 +1,26 @@
-# Stack para Coolify: el servicio `migrate` ejecuta `npx drizzle-kit push` (stage `migrator`)
-# y termina; `web` arranca solo si `migrate` sale con código 0.
+# Stack Coolify: `web` (Next) y `migrate` (drizzle-kit push) en el mismo repo.
 #
-# En Coolify: crear recurso **Docker Compose** en el proyecto, rama `main`, archivo
-# `docker-compose.coolify.yml` en la raíz del repo (sin Base Directory en app, o
-# según indique la UI para el path del compose).
-# Definir las variables del stack (igual que la app): como mínimo `DATABASE_URL`,
-# `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`, etc.
+# La web NO depende de `migrate`: el deploy no se bloquea si la introspección falla.
 #
-# Requiere Docker Compose **v2** (`service_completed_successfully`).
-# Prueba local:
-#   docker compose -f docker-compose.coolify.yml --env-file ruta/.env up --build
+# Despliegue habitual (Coolify / `docker compose up -d`): solo levanta `web` (perfil por defecto).
+# Migraciones (manual o job aparte), con el mismo `.env` del stack:
+#   docker compose -f docker-compose.coolify.yml --env-file .env --profile migrate run --rm migrate
+#
+# Si tu UI no pasa `--profile migrate`, el servicio `migrate` no arranca en el up normal.
 
 name: radiocolonia-coolify
 
 services:
   migrate:
+    profiles:
+      - migrate
     build:
       context: .
       dockerfile: Dockerfile
       target: migrator
     restart: "no"
     environment:
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DATABASE_URL: ${DATABASE_URL}
 
   web:
     build:
@@ -34,9 +33,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
-      AUTH_URL: ${AUTH_URL:?AUTH_URL is required}
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
@@ -44,9 +43,6 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
     volumes:
       - radiocolonia_uploads:/app/public/uploads
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
 
 volumes:
   radiocolonia_uploads:
