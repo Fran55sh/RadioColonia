@@ -20,9 +20,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
+# Push sin TTY (Coolify): --verbose para logs; --force evita prompts que devuelven exit 1.
+# Ojo: --force autoriza sentencias destructivas si Drizzle las detecta; revisá cambios de schema en prod.
 FROM builder AS migrator
 ENV NODE_ENV=production
-CMD ["npx", "drizzle-kit", "push"]
+ENV CI=true
+CMD ["npx", "drizzle-kit", "push", "--verbose", "--force"]
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app

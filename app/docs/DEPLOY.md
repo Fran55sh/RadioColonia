@@ -49,7 +49,7 @@ Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`**
 
 En la **raíz del repo** está [`docker-compose.coolify.yml`](../../docker-compose.coolify.yml):
 
-- Servicio **`migrate`**: construye el stage **`migrator`** del [`Dockerfile`](../../Dockerfile) y ejecuta `npx drizzle-kit push`; termina con código 0 o falla el deploy.
+- Servicio **`migrate`**: construye el stage **`migrator`** del [`Dockerfile`](../../Dockerfile) y ejecuta `npx drizzle-kit push --verbose --force` (sin TTY en Coolify); termina con código 0 o falla el deploy.
 - Servicio **`web`**: stage **`runner`** (Next en el puerto **3000**), volumen **`radiocolonia_uploads`** en `/app/public/uploads`.
 - **`web` depende de `migrate`** con `condition: service_completed_successfully` (requiere **Docker Compose v2**).
 
@@ -63,7 +63,7 @@ En la **raíz del repo** está [`docker-compose.coolify.yml`](../../docker-compo
 **Importante**
 
 - **No** uses **Post-deployment** en la aplicación Next para `drizzle-kit push`: el contenedor `runner` no está pensado para migraciones y mezcla responsabilidades.
-- Las migraciones ocurren solo en el contenedor **`migrate`** (mismo repo, mismo Dockerfile, target `migrator`).
+- Las migraciones ocurren solo en el contenedor **`migrate`** (mismo repo, mismo Dockerfile, target `migrator`). El stage usa **`--force`** para no quedar en prompts interactivos; puede auto-admitir cambios que Drizzle marque como destructivos — revisá `schema.ts` antes de desplegar en producción con datos reales.
 
 ### Alternativa: dos aplicaciones Dockerfile
 
