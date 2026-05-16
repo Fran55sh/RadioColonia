@@ -1,9 +1,10 @@
 # Stack Coolify: Postgres + migrate (job) + web.
 # La app usa DB_HOST / DB_USER / DB_PASSWORD / DB_NAME / DB_PORT (sin DATABASE_URL).
 #
-# En cada deploy que haga `docker compose up`: postgres queda healthy → migrate corre
-# (push + staging + seed, idempotente) y sale con código 0 → recién ahí arranca web.
-# Requiere Docker Compose que soporte `service_completed_successfully` (Compose v2+).
+# Orden en `docker compose up`: postgres healthy → migrate termina bien (push + staging + seed)
+# → arranca web. Coolify debe incluir todos los servicios del compose en el deploy.
+#
+# Para jobs one-shot, `exclude_from_hc` evita que Coolify los marque como "unhealthy" al salir.
 
 name: radiocolonia-coolify
 
@@ -30,6 +31,7 @@ services:
       dockerfile: Dockerfile
       target: migrator
     restart: "no"
+    exclude_from_hc: true
     environment:
       DB_HOST: ${DB_HOST:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -38,6 +40,11 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
     build:
       context: .
       dockerfile: Dockerfile
