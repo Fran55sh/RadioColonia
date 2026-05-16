@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -129,6 +130,25 @@ export const productImages = pgTable("product_images", {
   sortOrder: integer("sort_order").notNull().default(0),
 })
 
+export const productVariants = pgTable(
+  "product_variants",
+  {
+    id:               uuid("id").primaryKey().defaultRandom(),
+    productId:        uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    sku:              text("sku").notNull(),
+    stock:            integer("stock").notNull().default(0),
+    attributes:       jsonb("attributes").notNull().default({}),
+    costPrice:        numeric("cost_price", { precision: 10, scale: 2 }),
+    salePrice:        numeric("sale_price", { precision: 10, scale: 2 }),
+    marginPercentage: numeric("margin_percentage", { precision: 5, scale: 2 }),
+    createdAt:        timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    skuIdx:       uniqueIndex("product_variants_sku_idx").on(table.sku),
+    productIdx:   index("product_variants_product_idx").on(table.productId),
+  })
+)
+
 // ── Cart ──────────────────────────────────────────────────────────────────────
 
 export const carts = pgTable(
@@ -221,6 +241,8 @@ export type Category        = typeof categories.$inferSelect
 export type NewCategory     = typeof categories.$inferInsert
 export type Product         = typeof products.$inferSelect
 export type NewProduct      = typeof products.$inferInsert
+export type ProductVariant  = typeof productVariants.$inferSelect
+export type NewProductVariant = typeof productVariants.$inferInsert
 export type Cart            = typeof carts.$inferSelect
 export type CartItem        = typeof cartItems.$inferSelect
 export type Order           = typeof orders.$inferSelect

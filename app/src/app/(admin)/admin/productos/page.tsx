@@ -5,7 +5,7 @@ import { products, categories } from "@/db/schema"
 import { eq, desc } from "drizzle-orm"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { Plus, FileSpreadsheet } from "lucide-react"
 import ProductsTable from "./ProductsTable"
 
 export default async function AdminProductosPage() {
@@ -31,12 +31,20 @@ export default async function AdminProductosPage() {
           <h1 className="text-2xl font-bold text-foreground">Productos</h1>
           <p className="text-muted-foreground">{rows.length} producto(s) en total</p>
         </div>
-        <Link href="/admin/productos/nuevo">
-          <Button variant="hero">
-            <Plus className="w-4 h-4" />
-            Nuevo producto
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/admin/productos/importar">
+            <Button variant="dark">
+              <FileSpreadsheet className="w-4 h-4" />
+              Importar CSV
+            </Button>
+          </Link>
+          <Link href="/admin/productos/nuevo">
+            <Button variant="hero">
+              <Plus className="w-4 h-4" />
+              Nuevo producto
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <ProductsTable products={rows} />

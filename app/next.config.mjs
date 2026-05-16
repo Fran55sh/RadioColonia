@@ -1,14 +1,9 @@
-import path from "node:path"
-import { fileURLToPath } from "node:url"
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Imagen Docker: el contexto es solo esta carpeta; la raíz del proyecto Next es __dirname.
-  turbopack: {
-    root: __dirname,
-  },
+  // Next.js 16: NO setear `turbopack.root = __dirname`.
+  // Bug conocido (vercel/next.js#90307): cuando root === project dir, Turbopack
+  // resuelve `@import 'tailwindcss'` desde el directorio padre y falla con
+  // "Can't resolve 'tailwindcss'". Next infiere bien la raíz si se corre desde `app/`.
   output: "standalone",
   images: {
     remotePatterns: [

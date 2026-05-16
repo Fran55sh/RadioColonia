@@ -1,0 +1,3 @@
+handle,name,category_slug,description,cost_price,sale_price,sku,stock,attribute_name,attribute_value,image_filename
+auriculares-bt,Auriculares BT,audio,Descripción del producto,1500,2500,AUR-BT-001,50,Color,Negro,auriculares-bt.jpg
+auriculares-bt,Auriculares BT,audio,Descripción del producto,1500,2500,AUR-BT-002,30,Color,Blanco,auriculares-bt.jpg

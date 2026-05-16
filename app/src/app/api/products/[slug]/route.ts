@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/db"
-import { products, categories } from "@/db/schema"
+import { products, categories, productVariants } from "@/db/schema"
 import { eq } from "drizzle-orm"
 
 export async function GET(
@@ -33,5 +33,18 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  return NextResponse.json({ product })
+  const variants = await db
+    .select({
+      id:         productVariants.id,
+      sku:        productVariants.sku,
+      stock:      productVariants.stock,
+      attributes: productVariants.attributes,
+      salePrice:  productVariants.salePrice,
+      costPrice:  productVariants.costPrice,
+    })
+    .from(productVariants)
+    .where(eq(productVariants.productId, product.id))
+    .orderBy(productVariants.createdAt)
+
+  return NextResponse.json({ product, variants })
 }

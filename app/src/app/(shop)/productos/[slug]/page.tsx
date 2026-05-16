@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
@@ -8,6 +8,14 @@ import { Star, ShoppingCart, ArrowLeft, Truck, Shield, RotateCcw } from "lucide-
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/contexts/CartContext"
 import { toast } from "sonner"
+
+interface ProductVariant {
+  id:         string
+  sku:        string
+  stock:      number
+  salePrice:  string | null
+  attributes: Record<string, string>
+}
 
 interface ProductDetail {
   id:            string
@@ -26,9 +34,11 @@ interface ProductDetail {
 
 export default function ProductDetailPage() {
   const params = useParams<{ slug: string }>()
-  const [product, setProduct] = useState<ProductDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [qty, setQty] = useState(1)
+  const [product,  setProduct]  = useState<ProductDetail | null>(null)
+  const [variants, setVariants] = useState<ProductVariant[]>([])
+  const [selected, setSelected] = useState<ProductVariant | null>(null)
+  const [loading,  setLoading]  = useState(true)
+  const [qty,      setQty]      = useState(1)
   const { addItem } = useCart()
 
   useEffect(() => {
@@ -36,6 +46,9 @@ export default function ProductDetailPage() {
       .then((r) => r.json())
       .then((data) => {
         setProduct(data.product)
+        const v: ProductVariant[] = data.variants ?? []
+        setVariants(v)
+        if (v.length > 0) setSelected(v[0])
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -60,23 +73,58 @@ export default function ProductDetailPage() {
     )
   }
 
-  const price         = parseFloat(product.price)
+  // Price: use selected variant's salePrice if available, else product price
+  const price         = selected?.salePrice
+    ? parseFloat(selected.salePrice)
+    : parseFloat(product.price)
   const originalPrice = product.originalPrice ? parseFloat(product.originalPrice) : null
   const discount      = originalPrice ? Math.round((1 - price / originalPrice) * 100) : null
   const rating        = parseFloat(product.rating)
+  const activeStock   = selected ? selected.stock : product.stock
+
+  // Group variant attribute keys for rendering separate selectors (e.g. "Color", "Talle")
+  const attributeKeys = variants.length > 0
+    ? Array.from(new Set(variants.flatMap((v) => Object.keys(v.attributes))))
+    : []
+
+  /** Build a label string like "Color: Negro" from a variant's attributes */
+  function buildVariantLabel(v: ProductVariant) {
+    return Object.entries(v.attributes)
+      .map(([k, val]) => `${k}: ${val}`)
+      .join(" / ")
+  }
 
   const handleAddToCart = () => {
-    for (let i = 0; i < qty; i++) {
+    if (variants.length > 0 && !selected) {
+      toast.error("Seleccioná una variante antes de agregar al carrito.")
+      return
+    }
+
+    addItem({
+      id:            product.id,
+      slug:          product.slug,
+      name:          product.name,
+      price,
+      originalPrice: originalPrice ?? undefined,
+      image:         product.image,
+      sku:           selected?.sku,
+      variantLabel:  selected ? buildVariantLabel(selected) : undefined,
+    })
+
+    for (let i = 1; i < qty; i++) {
       addItem({
-        id:    product.id,
-        slug:  product.slug,
-        name:  product.name,
+        id:            product.id,
+        slug:          product.slug,
+        name:          product.name,
         price,
         originalPrice: originalPrice ?? undefined,
-        image: product.image,
+        image:         product.image,
+        sku:           selected?.sku,
+        variantLabel:  selected ? buildVariantLabel(selected) : undefined,
       })
     }
-    toast.success(`${product.name} agregado al carrito`)
+
+    toast.success(`${product.name}${selected ? ` (${buildVariantLabel(selected)})` : ""} agregado al carrito`)
   }
 
   return (
@@ -148,9 +196,11 @@ export default function ProductDetailPage() {
               {originalPrice && (
                 <>
                   <span className="text-xl text-muted-foreground line-through">${originalPrice.toFixed(2)}</span>
-                  <span className="bg-primary/10 text-primary text-sm font-semibold px-2 py-0.5 rounded-lg">
-                    -{discount}%
-                  </span>
+                  {discount && discount > 0 && (
+                    <span className="bg-primary/10 text-primary text-sm font-semibold px-2 py-0.5 rounded-lg">
+                      -{discount}%
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -158,18 +208,66 @@ export default function ProductDetailPage() {
             {/* Description */}
             <p className="text-muted-foreground text-lg leading-relaxed">{product.description}</p>
 
+            {/* Variant selectors */}
+            {variants.length > 0 && attributeKeys.map((attrKey) => {
+              // Unique values for this attribute key
+              const values = Array.from(
+                new Set(
+                  variants
+                    .filter((v) => v.attributes[attrKey] !== undefined)
+                    .map((v) => v.attributes[attrKey])
+                )
+              )
+
+              return (
+                <div key={attrKey} className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    {attrKey}
+                    {selected?.attributes[attrKey] && (
+                      <span className="ml-2 text-primary font-normal">{selected.attributes[attrKey]}</span>
+                    )}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {values.map((val) => {
+                      // Find variant matching the current selections + this value
+                      const matchingVariant = variants.find(
+                        (v) => v.attributes[attrKey] === val
+                      )
+                      const isSelected = selected?.attributes[attrKey] === val
+                      const outOfStock = matchingVariant ? matchingVariant.stock === 0 : false
+
+                      return (
+                        <button
+                          key={val}
+                          disabled={outOfStock}
+                          onClick={() => matchingVariant && setSelected(matchingVariant)}
+                          className={`
+                            px-4 py-2 rounded-xl text-sm font-medium border transition-all
+                            ${isSelected
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-secondary text-foreground hover:border-primary/50"}
+                            ${outOfStock ? "opacity-40 cursor-not-allowed line-through" : "cursor-pointer"}
+                          `}
+                        >
+                          {val}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+
             {/* Stock */}
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${product.stock > 0 ? "bg-green-500" : "bg-destructive"}`} />
+              <div className={`w-2 h-2 rounded-full ${activeStock > 0 ? "bg-green-500" : "bg-destructive"}`} />
               <span className="text-sm font-medium text-foreground">
-                {product.stock > 0
-                  ? `${product.stock} en stock`
-                  : "Sin stock"}
+                {activeStock > 0 ? `${activeStock} en stock` : "Sin stock"}
               </span>
             </div>
 
             {/* Quantity + Add */}
-            {product.stock > 0 && (
+            {activeStock > 0 && (
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 bg-secondary rounded-xl px-2">
                   <Button
@@ -181,7 +279,7 @@ export default function ProductDetailPage() {
                   <Button
                     variant="ghost" size="icon"
                     className="h-9 w-9"
-                    onClick={() => setQty(Math.min(product.stock, qty + 1))}
+                    onClick={() => setQty(Math.min(activeStock, qty + 1))}
                   >+</Button>
                 </div>
 
@@ -199,9 +297,9 @@ export default function ProductDetailPage() {
             {/* Trust features */}
             <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border">
               {[
-                { icon: Truck,       label: "Envío gratis" },
-                { icon: Shield,      label: "2 años garantía" },
-                { icon: RotateCcw,   label: "30 días devolución" },
+                { icon: Truck,      label: "Envío gratis" },
+                { icon: Shield,     label: "2 años garantía" },
+                { icon: RotateCcw,  label: "30 días devolución" },
               ].map(({ icon: Icon, label }) => (
                 <div key={label} className="flex flex-col items-center gap-2 text-center">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">

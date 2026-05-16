@@ -29,12 +29,11 @@ export default function HeroSection() {
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-tight">
               Electrónica
-              <span className="block text-gradient-orange">de Última Generación</span>
+              <span className="block text-gradient-orange">para Proyectos y Reparación</span>
             </h1>
 
             <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0">
-              Descubrí tecnología de punta: audio premium, dispositivos inteligentes
-              y accesorios gamer. Experimentá el futuro hoy.
+            Todo para tus proyectos y reparaciones: componentes electrónicos, audio, fuentes, conectividad, iluminación LED, herramientas y tecnología confiable para técnicos, makers y entusiastas.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">

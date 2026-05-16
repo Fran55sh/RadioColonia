@@ -10,6 +10,8 @@ export interface CartItem {
   image:         string
   quantity:      number
   slug:          string
+  sku?:          string
+  variantLabel?: string
 }
 
 interface CartContextType {
@@ -19,11 +21,16 @@ interface CartContextType {
   closeCart:      () => void
   toggleCart:     () => void
   addItem:        (item: Omit<CartItem, "quantity">) => void
-  removeItem:     (id: string) => void
-  updateQuantity: (id: string, quantity: number) => void
+  removeItem:     (cartKey: string) => void
+  updateQuantity: (cartKey: string, quantity: number) => void
   clearCart:      () => void
   totalItems:     number
   totalPrice:     number
+}
+
+/** Items with the same product id but different SKU must be separate cart entries */
+function cartKey(item: Pick<CartItem, "id" | "sku">) {
+  return item.sku ? `${item.id}::${item.sku}` : item.id
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -43,11 +50,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const toggleCart = () => setIsOpen((p) => !p)
 
   const addItem = (newItem: Omit<CartItem, "quantity">) => {
+    const key = cartKey(newItem)
     setItems((prev) => {
-      const existing = prev.find((i) => i.id === newItem.id)
+      const existing = prev.find((i) => cartKey(i) === key)
       if (existing) {
         return prev.map((i) =>
-          i.id === newItem.id ? { ...i, quantity: i.quantity + 1 } : i
+          cartKey(i) === key ? { ...i, quantity: i.quantity + 1 } : i
         )
       }
       return [...prev, { ...newItem, quantity: 1 }]
@@ -55,14 +63,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     openCart()
   }
 
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id))
+  const removeItem = (key: string) => {
+    setItems((prev) => prev.filter((i) => cartKey(i) !== key))
   }
 
-  const updateQuantity = (id: string, quantity: number) => {
-    if (quantity < 1) { removeItem(id); return }
+  const updateQuantity = (key: string, quantity: number) => {
+    if (quantity < 1) { removeItem(key); return }
     setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, quantity } : i))
+      prev.map((i) => (cartKey(i) === key ? { ...i, quantity } : i))
     )
   }
 

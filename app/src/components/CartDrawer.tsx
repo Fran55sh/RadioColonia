@@ -64,53 +64,59 @@ export default function CartDrawer() {
               </div>
             ) : (
               <div className="space-y-4">
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex gap-4 p-4 bg-card rounded-xl border border-border animate-fade-in"
-                  >
-                    <div className="w-20 h-20 rounded-lg bg-gradient-silver flex-shrink-0 overflow-hidden">
-                      <img src={item.image} alt={item.name} className="w-full h-full object-contain p-2" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-foreground line-clamp-2 text-sm mb-1">{item.name}</h4>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="font-semibold text-foreground">${item.price.toFixed(2)}</span>
-                        {item.originalPrice && (
-                          <span className="text-xs text-muted-foreground line-through">
-                            ${item.originalPrice.toFixed(2)}
-                          </span>
-                        )}
+                {items.map((item) => {
+                  const key = item.sku ? `${item.id}::${item.sku}` : item.id
+                  return (
+                    <div
+                      key={key}
+                      className="flex gap-4 p-4 bg-card rounded-xl border border-border animate-fade-in"
+                    >
+                      <div className="w-20 h-20 rounded-lg bg-gradient-silver flex-shrink-0 overflow-hidden">
+                        <img src={item.image} alt={item.name} className="w-full h-full object-contain p-2" />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-foreground line-clamp-2 text-sm mb-0.5">{item.name}</h4>
+                        {item.variantLabel && (
+                          <p className="text-xs text-primary mb-1">{item.variantLabel}</p>
+                        )}
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="font-semibold text-foreground">${item.price.toFixed(2)}</span>
+                          {item.originalPrice && (
+                            <span className="text-xs text-muted-foreground line-through">
+                              ${item.originalPrice.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline" size="icon"
+                              className="h-8 w-8"
+                              onClick={() => updateQuantity(key, item.quantity - 1)}
+                            >
+                              <Minus className="w-3 h-3" />
+                            </Button>
+                            <span className="w-8 text-center font-medium text-foreground">{item.quantity}</span>
+                            <Button
+                              variant="outline" size="icon"
+                              className="h-8 w-8"
+                              onClick={() => updateQuantity(key, item.quantity + 1)}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                          </div>
                           <Button
-                            variant="outline" size="icon"
-                            className="h-8 w-8"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            variant="ghost" size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => removeItem(key)}
                           >
-                            <Minus className="w-3 h-3" />
-                          </Button>
-                          <span className="w-8 text-center font-medium text-foreground">{item.quantity}</span>
-                          <Button
-                            variant="outline" size="icon"
-                            className="h-8 w-8"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          >
-                            <Plus className="w-3 h-3" />
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeItem(item.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
                 <Button
                   variant="ghost"
                   className="w-full text-muted-foreground hover:text-destructive"
