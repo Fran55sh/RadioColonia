@@ -25,8 +25,8 @@ RUN npm run build
 FROM builder AS migrator
 ENV NODE_ENV=production
 ENV CI=true
-RUN chmod +x migrate.sh
-CMD ["sh", "migrate.sh"]
+RUN sed -i 's/\r$//' migrate.sh && chmod +x migrate.sh
+CMD ["bash", "migrate.sh"]
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app

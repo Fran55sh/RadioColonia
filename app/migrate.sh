@@ -1,16 +1,33 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env bash
+# Migración Coolify/Docker Compose: WORKDIR=/app en la imagen migrator.
+set -euo pipefail
 
-echo "▶ migrate context: cwd=$(pwd)"
+cd /app
+
+DRIZZLE="./node_modules/drizzle-kit/bin.cjs"
+TSX_CLI="./node_modules/tsx/dist/cli.mjs"
+
+echo "▶ migrate cwd=$(pwd)"
 echo "▶ Postgres: host=${DB_HOST:-?} port=${DB_PORT:-5432} db=${DB_NAME:-?} user=${DB_USER:-?}"
 
-echo "▶ [1/3] Running Drizzle schema push..."
-npx drizzle-kit push --verbose --force
+if [[ ! -f "$DRIZZLE" ]]; then
+  echo "❌ Falta Drizzle CLI: $DRIZZLE"
+  exit 1
+fi
+if [[ ! -f "$TSX_CLI" ]]; then
+  echo "❌ Falta TSX CLI: $TSX_CLI"
+  exit 1
+fi
 
-echo "▶ [2/3] Creating staging table..."
-npx tsx src/db/migrate-staging.ts
+run_ts() { node "$TSX_CLI" "$@"; }
 
-echo "▶ [3/3] Seeding database..."
-npx tsx src/db/seed.ts
+echo "▶ [1/3] Drizzle schema push..."
+node "$DRIZZLE" push --verbose --force
 
-echo "✅ Migration + seed completed."
+echo "▶ [2/3] Tabla staging (CSV)..."
+run_ts src/db/migrate-staging.ts
+
+echo "▶ [3/3] Seed..."
+run_ts src/db/seed.ts
+
+echo "✅ Migración + seed completados."

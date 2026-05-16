@@ -1,0 +1,2 @@
+# Scripts en LF para que funcionen dentro de imágenes Linux (evita errores ocultos con CRLF desde Windows).
+app/migrate.sh text eol=lf
