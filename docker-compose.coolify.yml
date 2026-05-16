@@ -21,7 +21,9 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-pass}
       POSTGRES_DB: ${DB_NAME:-db}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Si necesitás BD limpia sin tocar la UI: renombrá esta clave (p. ej. postgres_db_data_v3)
+      # y redeploy. El volumen viejo queda huérfano; borralo con `docker volume rm ...` por SSH.
+      - postgres_db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 3s
@@ -80,5 +82,5 @@ services:
         condition: service_completed_successfully
 
 volumes:
-  postgres_data:
+  postgres_db_data:
   radiocolonia_uploads:

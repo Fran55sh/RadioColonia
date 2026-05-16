@@ -25,6 +25,8 @@ RUN npm run build
 FROM builder AS migrator
 ENV NODE_ENV=production
 ENV CI=true
+# bookworm-slim no trae bash; migrate.sh usa bash ([[ ]] / pipefail).
+RUN apt-get update && apt-get install -y --no-install-recommends bash && rm -rf /var/lib/apt/lists/*
 RUN sed -i 's/\r$//' migrate.sh && chmod +x migrate.sh
 CMD ["bash", "migrate.sh"]
 
