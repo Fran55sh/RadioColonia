@@ -20,12 +20,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
-# Push sin TTY (Coolify): --verbose para logs; --force evita prompts que devuelven exit 1.
-# Ojo: --force autoriza sentencias destructivas si Drizzle las detecta; revisá cambios de schema en prod.
+# Migración one-off en Coolify: schema + tabla staging CSV + seed (idempotente).
+# Igual que app/Dockerfile — el build contextual de Compose usa esta raíz, no app/Dockerfile.
 FROM builder AS migrator
 ENV NODE_ENV=production
 ENV CI=true
-CMD ["npx", "drizzle-kit", "push", "--verbose", "--force"]
+RUN chmod +x migrate.sh
+CMD ["sh", "migrate.sh"]
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
