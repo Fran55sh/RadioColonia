@@ -1,5 +1,8 @@
 #!/bin/sh
-set -e
+set -eu
+
+echo "▶ migrate context: cwd=$(pwd)"
+echo "▶ Postgres: host=${DB_HOST:-?} port=${DB_PORT:-5432} db=${DB_NAME:-?} user=${DB_USER:-?}"
 
 echo "▶ [1/3] Running Drizzle schema push..."
 npx drizzle-kit push --verbose --force

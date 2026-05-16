@@ -1,10 +1,16 @@
 import { Pool } from "pg"
-import { tryGetDatabaseUrl } from "./database-url"
+import { getDatabaseUrl } from "./database-url"
 import { loadEnvFiles } from "./load-env"
 
 loadEnvFiles()
 
-const pool = new Pool({ connectionString: tryGetDatabaseUrl() })
+let pool: Pool
+try {
+  pool = new Pool({ connectionString: getDatabaseUrl() })
+} catch (e) {
+  console.error("❌", e instanceof Error ? e.message : e)
+  process.exit(1)
+}
 
 async function createStagingTable() {
   const client = await pool.connect()

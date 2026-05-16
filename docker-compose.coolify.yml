@@ -5,6 +5,10 @@
 # → arranca web. Coolify debe incluir todos los servicios del compose en el deploy.
 #
 # Para jobs one-shot, `exclude_from_hc` evita que Coolify los marque como "unhealthy" al salir.
+#
+# DB_HOST debe ser el nombre DNS del servicio Postgres DENTRO de la red Compose (`postgres`).
+# Coolify suele definir DB_HOST=127.0.0.1 para dev local; si se inyecta en producción rompe migrate/web
+# porque dentro del contenedor 127.0.0.1 no es Postgres. Por eso forzamos `postgres` literal en migrate/web.
 
 name: radiocolonia-coolify
 
@@ -33,7 +37,7 @@ services:
     restart: "no"
     exclude_from_hc: true
     environment:
-      DB_HOST: ${DB_HOST:-postgres}
+      DB_HOST: postgres
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-pass}
       DB_NAME: ${DB_NAME:-db}
@@ -55,7 +59,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DB_HOST: ${DB_HOST:-postgres}
+      DB_HOST: postgres
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-pass}
       DB_NAME: ${DB_NAME:-db}
