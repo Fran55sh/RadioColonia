@@ -21,12 +21,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
-# ---- migrate (one-off: npx drizzle-kit push; flags alineados con Dockerfile raíz para CI/Coolify) ----
-# --verbose: logs útiles; --force: sin TTY no cuelgue en confirmaciones (riesgo de ops destructivas).
+# ---- migrate (one-off: push schema + staging table + seed) ----
+# --force: evita colgarse en confirmaciones sin TTY. El seed es idempotente (ON CONFLICT / checks previos).
 FROM builder AS migrator
 ENV NODE_ENV=production
 ENV CI=true
-CMD ["npx", "drizzle-kit", "push", "--verbose", "--force"]
+COPY migrate.sh ./migrate.sh
+RUN chmod +x migrate.sh
+CMD ["sh", "migrate.sh"]
 
 # ---- run ----
 FROM node:20-bookworm-slim AS runner
