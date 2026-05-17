@@ -50,6 +50,9 @@ services:
       postgres:
         condition: service_healthy
 
+  # Traefik (Coolify) necesita saber el puerto INTERNO de Node (3000). En la UI, asigná el
+  # dominio a ESTE servicio en formato https://tu-dominio.com:3000 (el :3000 no implica abrir
+  # 3000 en el navegador; ves https://tu-dominio.com en 443 según docs de Coolify).
   web:
     build:
       context: .
@@ -60,6 +63,18 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3000/api/health',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
     environment:
       DB_HOST: postgres
       DB_USER: ${DB_USER:-postgres}
