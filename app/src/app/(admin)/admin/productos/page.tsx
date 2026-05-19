@@ -1,27 +1,45 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/db"
-import { products, categories } from "@/db/schema"
-import { eq, desc } from "drizzle-orm"
+import { products, categories, productVariants } from "@/db/schema"
+import { eq, desc, sql } from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Plus, FileSpreadsheet } from "lucide-react"
 import ProductsTable from "./ProductsTable"
 
+const parentCategory = alias(categories, "parent_category")
+
 export default async function AdminProductosPage() {
   const rows = await db
     .select({
-      id:         products.id,
-      name:       products.name,
-      price:      products.price,
-      stock:      products.stock,
-      isActive:   products.isActive,
-      badge:      products.badge,
-      image:      products.image,
-      category:   categories.name,
+      id:           products.id,
+      name:         products.name,
+      price:        products.price,
+      stock:        products.stock,
+      isActive:     products.isActive,
+      badge:        products.badge,
+      image:        products.image,
+      categoryName: categories.name,
+      parentName:   parentCategory.name,
+      variantCount: sql<number>`cast(count(${productVariants.id}) as int)`,
     })
     .from(products)
     .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+    .leftJoin(productVariants, eq(productVariants.productId, products.id))
+    .groupBy(
+      products.id,
+      products.name,
+      products.price,
+      products.stock,
+      products.isActive,
+      products.badge,
+      products.image,
+      categories.name,
+      parentCategory.name
+    )
     .orderBy(desc(products.createdAt))
 
   return (

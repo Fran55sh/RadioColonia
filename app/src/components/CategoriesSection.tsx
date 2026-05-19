@@ -1,6 +1,6 @@
 import { db } from "@/db"
 import { categories, products } from "@/db/schema"
-import { eq, count } from "drizzle-orm"
+import { eq, count, isNull } from "drizzle-orm"
 import {
   Smartphone, Laptop, Watch, Headphones,
   Gamepad2, Camera, Tag,
@@ -23,6 +23,7 @@ export default async function CategoriesSection() {
     })
     .from(categories)
     .leftJoin(products, eq(products.categoryId, categories.id))
+    .where(isNull(categories.parentId))
     .groupBy(
       categories.id,
       categories.slug,

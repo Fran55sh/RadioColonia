@@ -1,6 +1,7 @@
 
 import { Pool } from "pg"
 import { tryGetDatabaseUrl } from "@/db/database-url"
+import { slugify } from "@/lib/slugify"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,9 +28,10 @@ export interface ImportResult {
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-export function validateRows(rows: CsvRow[]): string[] {
+export function validateRows(rows: CsvRow[], allowedAttributeSlugs: Set<string>): string[] {
   const errors: string[] = []
   const seenSkus = new Set<string>()
+  const allowedList = Array.from(allowedAttributeSlugs).sort().join(", ")
 
   rows.forEach((row, i) => {
     const line = i + 2 // +2: 1-indexed + header row
@@ -46,6 +48,18 @@ export function validateRows(rows: CsvRow[]): string[] {
       errors.push(`Fila ${line}: "sale_price" debe ser un número mayor a 0.`)
     } else if (!isNaN(costPrice) && costPrice >= salePrice) {
       errors.push(`Fila ${line} (SKU: ${row.sku}): "sale_price" (${salePrice}) debe ser mayor que "cost_price" (${costPrice}).`)
+    }
+
+    if (row.attribute_name?.trim()) {
+      const attrSlug = slugify(row.attribute_name.trim())
+      if (!allowedAttributeSlugs.has(attrSlug)) {
+        errors.push(
+          `Fila ${line}: "attribute_name" '${row.attribute_name}' no es válido. Usá un slug del catálogo: ${allowedList || "(vacío)"}`
+        )
+      }
+      if (!row.attribute_value?.trim()) {
+        errors.push(`Fila ${line}: "attribute_value" es obligatorio cuando hay attribute_name.`)
+      }
     }
 
     if (row.sku?.trim()) {
@@ -184,8 +198,11 @@ export async function runBulkImportTransaction(
           s.sku,
           s.stock,
           CASE
-            WHEN s.attribute_name IS NOT NULL
-            THEN jsonb_build_object(s.attribute_name, s.attribute_value)
+            WHEN s.attribute_name IS NOT NULL AND trim(s.attribute_name) <> ''
+            THEN jsonb_build_object(
+              lower(regexp_replace(trim(s.attribute_name), '\s+', '-', 'g')),
+              trim(s.attribute_value)
+            )
             ELSE '{}'::jsonb
           END,
           s.cost_price,

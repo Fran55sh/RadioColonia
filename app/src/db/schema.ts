@@ -84,6 +84,7 @@ export const categories = pgTable(
   "categories",
   {
     id:        uuid("id").primaryKey().defaultRandom(),
+    parentId:  uuid("parent_id"),
     slug:      text("slug").notNull(),
     name:      text("name").notNull(),
     iconName:  text("icon_name").notNull().default("tag"),
@@ -91,7 +92,24 @@ export const categories = pgTable(
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => ({
-    slugIdx: uniqueIndex("categories_slug_idx").on(table.slug),
+    slugIdx:   uniqueIndex("categories_slug_idx").on(table.slug),
+    parentIdx: index("categories_parent_idx").on(table.parentId),
+  })
+)
+
+// ── Global Attributes (variant keys catalog) ──────────────────────────────────
+
+export const globalAttributes = pgTable(
+  "global_attributes",
+  {
+    id:        uuid("id").primaryKey().defaultRandom(),
+    name:      text("name").notNull(),
+    slug:      text("slug").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    slugIdx: uniqueIndex("global_attributes_slug_idx").on(table.slug),
   })
 )
 
@@ -239,6 +257,8 @@ export type User            = typeof users.$inferSelect
 export type NewUser         = typeof users.$inferInsert
 export type Category        = typeof categories.$inferSelect
 export type NewCategory     = typeof categories.$inferInsert
+export type GlobalAttribute = typeof globalAttributes.$inferSelect
+export type NewGlobalAttribute = typeof globalAttributes.$inferInsert
 export type Product         = typeof products.$inferSelect
 export type NewProduct      = typeof products.$inferInsert
 export type ProductVariant  = typeof productVariants.$inferSelect

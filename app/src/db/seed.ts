@@ -18,12 +18,24 @@ try {
 const db = drizzle(pool, { schema })
 
 const categoriesData = [
-  { slug: "phones",       name: "Phones",       iconName: "Smartphone",   sortOrder: 1 },
-  { slug: "laptops",      name: "Laptops",       iconName: "Laptop",       sortOrder: 2 },
-  { slug: "smartwatches", name: "Smartwatches",  iconName: "Watch",        sortOrder: 3 },
-  { slug: "audio",        name: "Audio",         iconName: "Headphones",   sortOrder: 4 },
-  { slug: "gaming",       name: "Gaming",        iconName: "Gamepad2",     sortOrder: 5 },
-  { slug: "cameras",      name: "Cameras",       iconName: "Camera",       sortOrder: 6 },
+  { slug: "phones",       name: "Phones",       iconName: "Smartphone",   sortOrder: 1, parentId: null as string | null },
+  { slug: "laptops",      name: "Laptops",       iconName: "Laptop",       sortOrder: 2, parentId: null },
+  { slug: "smartwatches", name: "Smartwatches",  iconName: "Watch",        sortOrder: 3, parentId: null },
+  { slug: "audio",        name: "Audio",         iconName: "Headphones",   sortOrder: 4, parentId: null },
+  { slug: "gaming",       name: "Gaming",        iconName: "Gamepad2",     sortOrder: 5, parentId: null },
+  { slug: "cameras",      name: "Cameras",       iconName: "Camera",       sortOrder: 6, parentId: null },
+]
+
+const subcategoriesData = [
+  { slug: "gaming-consolas",  name: "Consolas",  iconName: "Gamepad2", sortOrder: 1, parentSlug: "gaming" },
+  { slug: "gaming-accesorios", name: "Accesorios", iconName: "Gamepad2", sortOrder: 2, parentSlug: "gaming" },
+]
+
+const globalAttributesData = [
+  { slug: "color",     name: "Color",     sortOrder: 1 },
+  { slug: "talle",     name: "Talle",     sortOrder: 2 },
+  { slug: "voltaje",   name: "Voltaje",   sortOrder: 3 },
+  { slug: "capacidad", name: "Capacidad", sortOrder: 4 },
 ]
 
 const productsData = [
@@ -110,6 +122,22 @@ const productsData = [
 async function seed() {
   console.log("🌱 Seeding database...")
 
+  // Global attributes
+  for (const attr of globalAttributesData) {
+    const existing = await db
+      .select()
+      .from(schema.globalAttributes)
+      .where(eq(schema.globalAttributes.slug, attr.slug))
+      .limit(1)
+
+    if (existing.length === 0) {
+      await db.insert(schema.globalAttributes).values(attr)
+      console.log(`  ✓ Attribute: ${attr.name}`)
+    } else {
+      console.log(`  ~ Attribute already exists: ${attr.name}`)
+    }
+  }
+
   // Categories
   const categoryMap: Record<string, string> = {}
   for (const cat of categoriesData) {
@@ -129,6 +157,35 @@ async function seed() {
     }
   }
 
+  for (const sub of subcategoriesData) {
+    const parentId = categoryMap[sub.parentSlug]
+    if (!parentId) continue
+    const existing = await db
+      .select()
+      .from(schema.categories)
+      .where(eq(schema.categories.slug, sub.slug))
+      .limit(1)
+
+    const row = {
+      slug:      sub.slug,
+      name:      sub.name,
+      iconName:  sub.iconName,
+      sortOrder: sub.sortOrder,
+      parentId,
+    }
+
+    if (existing.length === 0) {
+      const [inserted] = await db.insert(schema.categories).values(row).returning()
+      categoryMap[sub.slug] = inserted.id
+      console.log(`  ✓ Subcategory: ${sub.name}`)
+    } else {
+      categoryMap[sub.slug] = existing[0].id
+      console.log(`  ~ Subcategory already exists: ${sub.name}`)
+    }
+  }
+
+  const productIdBySlug: Record<string, string> = {}
+
   // Products
   for (const prod of productsData) {
     const { categorySlug, ...prodData } = prod
@@ -139,13 +196,42 @@ async function seed() {
       .limit(1)
 
     if (existing.length === 0) {
-      await db.insert(schema.products).values({
+      const [inserted] = await db.insert(schema.products).values({
         ...prodData,
         categoryId: categoryMap[categorySlug],
-      })
+      }).returning({ id: schema.products.id })
+      productIdBySlug[prod.slug] = inserted.id
       console.log(`  ✓ Product: ${prod.name}`)
     } else {
+      productIdBySlug[prod.slug] = existing[0].id
       console.log(`  ~ Product already exists: ${prod.name}`)
+    }
+  }
+
+  // Sample variants for smartphone
+  const phoneId = productIdBySlug["pro-max-smartphone-256gb"]
+  if (phoneId) {
+    const sampleVariants = [
+      { sku: "PHONE-256-BLK", stock: 25, salePrice: "999.99", costPrice: "750.00", attributes: { color: "Negro" } },
+      { sku: "PHONE-256-WHT", stock: 25, salePrice: "999.99", costPrice: "750.00", attributes: { color: "Blanco" } },
+    ]
+    for (const v of sampleVariants) {
+      const exists = await db
+        .select()
+        .from(schema.productVariants)
+        .where(eq(schema.productVariants.sku, v.sku))
+        .limit(1)
+      if (exists.length === 0) {
+        await db.insert(schema.productVariants).values({
+          productId: phoneId,
+          sku:       v.sku,
+          stock:     v.stock,
+          salePrice: v.salePrice,
+          costPrice: v.costPrice,
+          attributes: v.attributes,
+        })
+        console.log(`  ✓ Variant: ${v.sku}`)
+      }
     }
   }
 

@@ -36,6 +36,7 @@ export default function ProductDetailPage() {
   const params = useParams<{ slug: string }>()
   const [product,  setProduct]  = useState<ProductDetail | null>(null)
   const [variants, setVariants] = useState<ProductVariant[]>([])
+  const [attributeLabels, setAttributeLabels] = useState<Record<string, string>>({})
   const [selected, setSelected] = useState<ProductVariant | null>(null)
   const [loading,  setLoading]  = useState(true)
   const [qty,      setQty]      = useState(1)
@@ -48,6 +49,7 @@ export default function ProductDetailPage() {
         setProduct(data.product)
         const v: ProductVariant[] = data.variants ?? []
         setVariants(v)
+        setAttributeLabels(data.attributeLabels ?? {})
         if (v.length > 0) setSelected(v[0])
         setLoading(false)
       })
@@ -88,9 +90,13 @@ export default function ProductDetailPage() {
     : []
 
   /** Build a label string like "Color: Negro" from a variant's attributes */
+  function attrDisplayName(slug: string) {
+    return attributeLabels[slug] ?? slug
+  }
+
   function buildVariantLabel(v: ProductVariant) {
     return Object.entries(v.attributes)
-      .map(([k, val]) => `${k}: ${val}`)
+      .map(([k, val]) => `${attrDisplayName(k)}: ${val}`)
       .join(" / ")
   }
 
@@ -222,7 +228,7 @@ export default function ProductDetailPage() {
               return (
                 <div key={attrKey} className="space-y-2">
                   <p className="text-sm font-semibold text-foreground">
-                    {attrKey}
+                    {attrDisplayName(attrKey)}
                     {selected?.attributes[attrKey] && (
                       <span className="ml-2 text-primary font-normal">{selected.attributes[attrKey]}</span>
                     )}

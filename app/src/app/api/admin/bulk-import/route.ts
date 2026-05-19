@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { parse } from "fast-csv"
 import { Readable } from "stream"
 import { auth } from "@/lib/auth"
+import { db } from "@/db"
+import { globalAttributes } from "@/db/schema"
 import { validateRows, runBulkImportTransaction, type CsvRow } from "@/server/actions/bulkImport"
 import { randomUUID } from "crypto"
 
@@ -77,8 +79,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "El archivo CSV está vacío o no tiene filas de datos." }, { status: 400 })
   }
 
-  // Validate all rows before touching the database
-  const validationErrors = validateRows(rows)
+  const attrRows = await db.select({ slug: globalAttributes.slug }).from(globalAttributes)
+  const allowedSlugs = new Set(attrRows.map((a) => a.slug))
+
+  const validationErrors = validateRows(rows, allowedSlugs)
   if (validationErrors.length > 0) {
     return NextResponse.json(
       { error: "El CSV contiene errores de validación.", details: validationErrors },

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/db"
 import { products, categories } from "@/db/schema"
-import { eq, and, desc, inArray } from "drizzle-orm"
+import { eq, and, desc } from "drizzle-orm"
 import ProductCard from "@/components/ProductCard"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -10,42 +10,37 @@ import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 
 interface Props {
-  params: Promise<{ slug: string }>
+  params: Promise<{ parentSlug: string; subSlug: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params
+  const { subSlug } = await params
   const [cat] = await db
     .select({ name: categories.name })
     .from(categories)
-    .where(eq(categories.slug, slug))
+    .where(eq(categories.slug, subSlug))
     .limit(1)
   return { title: cat ? `${cat.name} — Radio Colonia` : "Categoría — Radio Colonia" }
 }
 
-export default async function CategoryPage({ params }: Props) {
-  const { slug } = await params
+export default async function SubcategoryPage({ params }: Props) {
+  const { parentSlug, subSlug } = await params
 
-  const [category] = await db
+  const [parent] = await db
     .select()
     .from(categories)
-    .where(eq(categories.slug, slug))
+    .where(eq(categories.slug, parentSlug))
     .limit(1)
 
-  if (!category) notFound()
+  const [subcategory] = await db
+    .select()
+    .from(categories)
+    .where(eq(categories.slug, subSlug))
+    .limit(1)
 
-  const subcategories = category.parentId
-    ? []
-    : await db
-        .select()
-        .from(categories)
-        .where(eq(categories.parentId, category.id))
-        .orderBy(categories.sortOrder)
-
-  const categoryIds =
-    !category.parentId && subcategories.length > 0
-      ? [category.id, ...subcategories.map((s) => s.id)]
-      : [category.id]
+  if (!parent || !subcategory || subcategory.parentId !== parent.id) {
+    notFound()
+  }
 
   const rows = await db
     .select({
@@ -60,12 +55,7 @@ export default async function CategoryPage({ params }: Props) {
       reviews:       products.reviews,
     })
     .from(products)
-    .where(
-      and(
-        inArray(products.categoryId, categoryIds),
-        eq(products.isActive, true)
-      )
-    )
+    .where(and(eq(products.categoryId, subcategory.id), eq(products.isActive, true)))
     .orderBy(desc(products.createdAt))
 
   return (
@@ -77,31 +67,21 @@ export default async function CategoryPage({ params }: Props) {
             <span className="mx-2">/</span>
             <Link href="/categorias" className="hover:text-primary">Categorías</Link>
             <span className="mx-2">/</span>
-            <span className="text-foreground">{category.name}</span>
+            <Link href={`/categorias/${parent.slug}`} className="hover:text-primary">
+              {parent.name}
+            </Link>
+            <span className="mx-2">/</span>
+            <span className="text-foreground">{subcategory.name}</span>
           </nav>
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">{category.name}</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground">{subcategory.name}</h1>
           <p className="text-muted-foreground mt-2">{rows.length} productos disponibles</p>
-
-          {subcategories.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-4">
-              {subcategories.map((sub) => (
-                <Link
-                  key={sub.id}
-                  href={`/categorias/${category.slug}/${sub.slug}`}
-                  className="px-3 py-1.5 rounded-lg border border-border text-sm hover:border-primary hover:text-primary transition-colors"
-                >
-                  {sub.name}
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
 
         {rows.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-muted-foreground text-lg mb-4">No hay productos en esta categoría</p>
-            <Link href="/productos">
-              <Button variant="hero">Ver todos los productos</Button>
+            <p className="text-muted-foreground text-lg mb-4">No hay productos en esta subcategoría</p>
+            <Link href={`/categorias/${parent.slug}`}>
+              <Button variant="hero">Ver categoría {parent.name}</Button>
             </Link>
           </div>
         ) : (

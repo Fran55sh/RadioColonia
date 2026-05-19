@@ -9,14 +9,22 @@ import { deleteProduct } from "@/server/actions/products"
 import { toast } from "sonner"
 
 interface ProductRow {
-  id:       string
-  name:     string
-  price:    string
-  stock:    number
-  isActive: boolean
-  badge:    string | null
-  image:    string
-  category: string | null
+  id:           string
+  name:         string
+  price:        string
+  stock:        number
+  isActive:     boolean
+  badge:        string | null
+  image:        string
+  categoryName: string | null
+  parentName:   string | null
+  variantCount: number
+}
+
+function formatCategory(row: ProductRow) {
+  if (!row.categoryName) return "—"
+  if (row.parentName) return `${row.parentName} › ${row.categoryName}`
+  return row.categoryName
 }
 
 export default function ProductsTable({ products }: { products: ProductRow[] }) {
@@ -47,6 +55,7 @@ export default function ProductsTable({ products }: { products: ProductRow[] }) 
             <tr>
               <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Producto</th>
               <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoría</th>
+              <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Variantes</th>
               <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Precio</th>
               <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Stock</th>
               <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado</th>
@@ -69,7 +78,10 @@ export default function ProductsTable({ products }: { products: ProductRow[] }) 
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-muted-foreground">{product.category ?? "—"}</td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">{formatCategory(product)}</td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">
+                  {product.variantCount > 0 ? product.variantCount : "—"}
+                </td>
                 <td className="px-6 py-4 text-sm font-semibold text-foreground">${parseFloat(product.price).toFixed(2)}</td>
                 <td className="px-6 py-4 text-sm text-foreground">{product.stock}</td>
                 <td className="px-6 py-4">

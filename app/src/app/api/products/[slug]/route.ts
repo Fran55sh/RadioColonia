@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/db"
-import { products, categories, productVariants } from "@/db/schema"
+import { products, categories, productVariants, globalAttributes } from "@/db/schema"
 import { eq } from "drizzle-orm"
 
 export async function GET(
@@ -46,5 +46,11 @@ export async function GET(
     .where(eq(productVariants.productId, product.id))
     .orderBy(productVariants.createdAt)
 
-  return NextResponse.json({ product, variants })
+  const attrRows = await db
+    .select({ slug: globalAttributes.slug, name: globalAttributes.name })
+    .from(globalAttributes)
+
+  const attributeLabels = Object.fromEntries(attrRows.map((a) => [a.slug, a.name]))
+
+  return NextResponse.json({ product, variants, attributeLabels })
 }

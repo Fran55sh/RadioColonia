@@ -44,10 +44,28 @@ export const categorySchema = z.object({
   slug:      z.string().min(2).regex(/^[a-z0-9-]+$/, "Solo letras, números y guiones"),
   iconName:  z.string().min(1, "Ícono requerido").default("Tag"),
   sortOrder: z.coerce.number().int().min(0).default(0),
+  parentId:  z.string().uuid("Categoría padre inválida").optional().nullable(),
 })
 
-export type LoginInput    = z.infer<typeof loginSchema>
-export type RegisterInput = z.infer<typeof registerSchema>
-export type AddressInput  = z.infer<typeof addressSchema>
-export type ProductInput  = z.infer<typeof productSchema>
-export type CategoryInput = z.infer<typeof categorySchema>
+export const globalAttributeSchema = z.object({
+  name:      z.string().min(2, "Nombre requerido"),
+  slug:      z.string().min(2).regex(/^[a-z0-9-]+$/, "Solo letras, números y guiones"),
+  sortOrder: z.coerce.number().int().min(0).default(0),
+})
+
+export const productVariantSchema = z.object({
+  id:         z.string().uuid().optional(),
+  sku:        z.string().min(1, "SKU requerido"),
+  stock:      z.coerce.number().int().min(0, "Stock inválido"),
+  costPrice:  z.coerce.number().positive().optional().nullable(),
+  salePrice:  z.coerce.number().positive().optional().nullable(),
+  attributes: z.record(z.string(), z.string()),
+})
+
+export type LoginInput           = z.infer<typeof loginSchema>
+export type RegisterInput        = z.infer<typeof registerSchema>
+export type AddressInput         = z.infer<typeof addressSchema>
+export type ProductInput         = z.infer<typeof productSchema>
+export type CategoryInput        = z.infer<typeof categorySchema>
+export type GlobalAttributeInput = z.infer<typeof globalAttributeSchema>
+export type ProductVariantInput  = z.infer<typeof productVariantSchema>

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/db"
 import { products, categories } from "@/db/schema"
-import { eq, ilike, and, or, desc, asc } from "drizzle-orm"
+import { eq, ilike, and, inArray, desc, asc } from "drizzle-orm"
 import ProductCard from "@/components/ProductCard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,11 +15,12 @@ export const metadata: Metadata = {
 }
 
 interface SearchParams {
-  q?:           string
-  categoria?:   string
-  badge?:       string
-  orden?:       string
-  pagina?:      string
+  q?:            string
+  categoria?:    string
+  subcategoria?: string
+  badge?:        string
+  orden?:        string
+  pagina?:       string
 }
 
 const PAGE_SIZE = 12
@@ -35,16 +36,30 @@ export default async function ProductosPage({
 
   // Fetch categories for filter sidebar
   const cats = await db
-    .select({ id: categories.id, slug: categories.slug, name: categories.name })
+    .select({
+      id:       categories.id,
+      slug:     categories.slug,
+      name:     categories.name,
+      parentId: categories.parentId,
+    })
     .from(categories)
     .orderBy(asc(categories.sortOrder))
 
+  const parentCats = cats.filter((c) => !c.parentId)
+
   // Build where conditions
   const conditions = [eq(products.isActive, true)]
-  if (sp.q)         conditions.push(ilike(products.name, `%${sp.q}%`))
-  if (sp.categoria) {
-    const cat = cats.find((c) => c.slug === sp.categoria)
-    if (cat) conditions.push(eq(products.categoryId, cat.id))
+  if (sp.q) conditions.push(ilike(products.name, `%${sp.q}%`))
+
+  if (sp.subcategoria) {
+    const sub = cats.find((c) => c.slug === sp.subcategoria)
+    if (sub) conditions.push(eq(products.categoryId, sub.id))
+  } else if (sp.categoria) {
+    const parent = parentCats.find((c) => c.slug === sp.categoria)
+    if (parent) {
+      const childIds = cats.filter((c) => c.parentId === parent.id).map((c) => c.id)
+      conditions.push(inArray(products.categoryId, [parent.id, ...childIds]))
+    }
   }
   if (sp.badge)     conditions.push(eq(products.badge, sp.badge))
 
@@ -84,8 +99,10 @@ export default async function ProductosPage({
         <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-8">
           {sp.q
             ? `Resultados para "${sp.q}"`
+            : sp.subcategoria
+            ? cats.find((c) => c.slug === sp.subcategoria)?.name ?? "Productos"
             : sp.categoria
-            ? cats.find((c) => c.slug === sp.categoria)?.name ?? "Productos"
+            ? parentCats.find((c) => c.slug === sp.categoria)?.name ?? "Productos"
             : "Todos los Productos"}
         </h1>
 
@@ -116,22 +133,49 @@ export default async function ProductosPage({
                   <Link
                     href="/productos"
                     className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                      !sp.categoria ? "bg-primary text-white" : "text-foreground hover:bg-muted"
+                      !sp.categoria && !sp.subcategoria
+                        ? "bg-primary text-white"
+                        : "text-foreground hover:bg-muted"
                     }`}
                   >
                     Todas
                   </Link>
-                  {cats.map((cat) => (
-                    <Link
-                      key={cat.id}
-                      href={`/productos?categoria=${cat.slug}`}
-                      className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                        sp.categoria === cat.slug ? "bg-primary text-white" : "text-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {cat.name}
-                    </Link>
-                  ))}
+                  {parentCats.map((parent) => {
+                    const subs = cats.filter((c) => c.parentId === parent.id)
+                    const isParentActive =
+                      sp.categoria === parent.slug && !sp.subcategoria
+                    return (
+                      <div key={parent.id}>
+                        <Link
+                          href={`/productos?categoria=${parent.slug}`}
+                          className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                            isParentActive
+                              ? "bg-primary text-white"
+                              : "text-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {parent.name}
+                        </Link>
+                        {subs.length > 0 && (
+                          <div className="ml-3 mt-1 space-y-1 border-l border-border pl-2">
+                            {subs.map((sub) => (
+                              <Link
+                                key={sub.id}
+                                href={`/productos?categoria=${parent.slug}&subcategoria=${sub.slug}`}
+                                className={`block px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                                  sp.subcategoria === sub.slug
+                                    ? "bg-primary text-white"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                }`}
+                              >
+                                {sub.name}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -147,6 +191,7 @@ export default async function ProductosPage({
                     const params = new URLSearchParams({
                       ...(sp.q && { q: sp.q }),
                       ...(sp.categoria && { categoria: sp.categoria }),
+                      ...(sp.subcategoria && { subcategoria: sp.subcategoria }),
                       ...(value && { orden: value }),
                     })
                     return (
@@ -202,6 +247,7 @@ export default async function ProductosPage({
                       const params = new URLSearchParams({
                         ...(sp.q && { q: sp.q }),
                         ...(sp.categoria && { categoria: sp.categoria }),
+                        ...(sp.subcategoria && { subcategoria: sp.subcategoria }),
                         ...(sp.orden && { orden: sp.orden }),
                         pagina: String(p),
                       })

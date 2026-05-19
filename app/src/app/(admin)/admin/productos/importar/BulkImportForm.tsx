@@ -85,7 +85,7 @@ export default function BulkImportForm() {
             <div>
               <p className="text-white font-medium">Haz clic para seleccionar un archivo CSV</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Columnas: handle, name, category_slug, description, cost_price, sale_price, sku, stock, attribute_name, attribute_value, image_filename
+                Columnas: handle, name, category_slug, description, cost_price, sale_price, sku, stock, attribute_name (slug global, ej. color), attribute_value, image_filename
               </p>
             </div>
           )}
@@ -155,6 +155,7 @@ export default function BulkImportForm() {
         <h3 className="text-sm font-semibold text-white">Formato esperado del CSV</h3>
         <p className="text-xs text-muted-foreground">
           Cada fila representa una variante. Productos con el mismo <code className="text-primary">handle</code> se agrupan automáticamente.
+          El campo <code className="text-primary">attribute_name</code> debe ser un slug del catálogo global (ej. <code className="text-primary">color</code>, <code className="text-primary">talle</code>).
         </p>
         <pre className="text-xs text-silver-light overflow-x-auto bg-background/50 rounded p-3 leading-relaxed">
 {`handle,name,category_slug,description,cost_price,sale_price,sku,stock,attribute_name,attribute_value,image_filename
