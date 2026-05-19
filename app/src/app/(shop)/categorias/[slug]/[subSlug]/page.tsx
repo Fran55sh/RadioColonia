@@ -10,7 +10,7 @@ import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 
 interface Props {
-  params: Promise<{ parentSlug: string; subSlug: string }>
+  params: Promise<{ slug: string; subSlug: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function SubcategoryPage({ params }: Props) {
-  const { parentSlug, subSlug } = await params
+  const { slug: parentSlug, subSlug } = await params
 
   const [parent] = await db
     .select()
