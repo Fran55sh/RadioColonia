@@ -110,9 +110,9 @@ export default function ProductForm({
         ? await updateProduct(product.id, fd, variantPayload)
         : await createProduct(fd, variantPayload)
 
-      if (result.error) {
+      if ("error" in result && result.error) {
         setError(
-          result.details?.length
+          "details" in result && result.details?.length
             ? `${result.error}: ${result.details.join(" ")}`
             : result.error
         )

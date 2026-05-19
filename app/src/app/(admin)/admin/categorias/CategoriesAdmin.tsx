@@ -97,7 +97,7 @@ export default function CategoriesAdmin({ categories }: { categories: Category[]
             <CategoryBlock
               key={parent.id}
               category={parent}
-              children={childrenByParent.get(parent.id) ?? []}
+              subcategories={childrenByParent.get(parent.id) ?? []}
               parents={parents}
               editing={editing}
               setEditing={setEditing}
@@ -129,7 +129,7 @@ export default function CategoriesAdmin({ categories }: { categories: Category[]
 
 function CategoryBlock({
   category,
-  children,
+  subcategories,
   parents,
   editing,
   setEditing,
@@ -138,7 +138,7 @@ function CategoryBlock({
   onDelete,
 }: {
   category: Category
-  children: Category[]
+  subcategories: Category[]
   parents: Category[]
   editing: Category | null
   setEditing: (c: Category | null) => void
@@ -157,7 +157,7 @@ function CategoryBlock({
         onUpdate={onUpdate}
         onDelete={onDelete}
       />
-      {children.map((child) => (
+      {subcategories.map((child) => (
         <CategoryRow
           key={child.id}
           category={child}
