@@ -21,13 +21,29 @@ fi
 
 run_ts() { node "$TSX_CLI" "$@"; }
 
-echo "▶ [1/3] Drizzle schema push..."
-node "$DRIZZLE" push --verbose --force
+# [1/5] Aplicar migraciones SQL idempotentes ANTES del push. Esto garantiza que
+# las tablas y columnas declaradas en `src/db/migrations/*.sql` existan, evitando
+# que `drizzle-kit push` necesite TTY para resolver tablas "nuevas".
+echo "▶ [1/5] Aplicando migraciones SQL idempotentes..."
+run_ts src/db/apply-sql-migrations.ts
 
-echo "▶ [2/3] Tabla staging (CSV)..."
+# [2/5] Sincronizar el schema TS con la BD para cualquier diferencia menor.
+# Si la BD ya quedó alineada por el paso 1, push no detecta cambios y no pide
+# prompts. En BD vacía, push crea el resto de tablas base sin conflictos.
+echo "▶ [2/5] Drizzle schema push (sync)..."
+node "$DRIZZLE" push --verbose --force || echo "⚠ Drizzle push reportó issues; se valida el schema en el paso 3."
+
+# [3/5] Validar que las tablas críticas existan. drizzle-kit a veces imprime
+# errores pero sale con código 0; este paso falla rápido si quedó algo a medias.
+echo "▶ [3/5] Verificando schema..."
+run_ts src/db/verify-schema.ts
+
+# [4/5] Tabla staging para imports CSV.
+echo "▶ [4/5] Tabla staging (CSV)..."
 run_ts src/db/migrate-staging.ts
 
-echo "▶ [3/3] Seed..."
+# [5/5] Seed idempotente.
+echo "▶ [5/5] Seed..."
 run_ts src/db/seed.ts
 
 echo "✅ Migración + seed completados."
