@@ -1,10 +1,17 @@
 export const dynamic = "force-dynamic"
 
 import { buildMediaInventory } from "@/lib/media-inventory"
+import { listProductsForMediaAssignment } from "@/server/actions/media"
 import MediaManager from "./MediaManager"
 
 export default async function AdminImagenesPage() {
-  const inventory = await buildMediaInventory()
+  const [inventory, productsResult] = await Promise.all([
+    buildMediaInventory(),
+    listProductsForMediaAssignment(),
+  ])
+
+  const products =
+    "products" in productsResult ? productsResult.products : []
 
   return (
     <div className="p-8">
@@ -14,7 +21,7 @@ export default async function AdminImagenesPage() {
           Archivos en el volumen de subidas y su vínculo con productos
         </p>
       </div>
-      <MediaManager initialInventory={inventory} />
+      <MediaManager initialInventory={inventory} products={products} />
     </div>
   )
 }

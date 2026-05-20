@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useMemo, useRef, useState, useTransition } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -12,9 +12,17 @@ import {
   Link2,
   Unlink,
   AlertTriangle,
+  Upload,
+  Loader2,
+  LinkIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { deleteOrphanMedia, getMediaInventory } from "@/server/actions/media"
+import {
+  assignOrphanMediaToProduct,
+  deleteOrphanMedia,
+  getMediaInventory,
+  type ProductForMediaAssignment,
+} from "@/server/actions/media"
 import type { MediaFileEntry, MediaInventory } from "@/lib/media-inventory"
 import { toast } from "sonner"
 
@@ -46,29 +54,65 @@ const statusStyles: Record<MediaFileEntry["status"], string> = {
 
 export default function MediaManager({
   initialInventory,
+  products,
 }: {
   initialInventory: MediaInventory
+  products: ProductForMediaAssignment[]
 }) {
   const [inventory, setInventory] = useState(initialInventory)
   const [fileFilter, setFileFilter] = useState<FileFilter>("all")
   const [viewTab, setViewTab] = useState<ViewTab>("files")
+  const [uploading, setUploading] = useState(false)
   const [isPending, start] = useTransition()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const filteredFiles = useMemo(() => {
     if (fileFilter === "all") return inventory.files
     return inventory.files.filter((f) => f.status === fileFilter)
   }, [inventory.files, fileFilter])
 
+  async function reloadInventory() {
+    const result = await getMediaInventory()
+    if ("inventory" in result) {
+      setInventory(result.inventory)
+    }
+    return result
+  }
+
   function refresh() {
     start(async () => {
-      const result = await getMediaInventory()
+      const result = await reloadInventory()
       if ("error" in result) {
         toast.error(result.error)
         return
       }
-      setInventory(result.inventory)
       toast.success("Inventario actualizado")
     })
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch("/api/upload", { method: "POST", body: fd })
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        toast.error(data.error ?? "Error al subir imagen")
+        return
+      }
+      toast.success("Imagen subida (queda como huérfana hasta asignarla)")
+      const result = await reloadInventory()
+      if ("inventory" in result) {
+        setFileFilter("orphan")
+        setViewTab("files")
+      }
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
   }
 
   function handleDelete(filename: string) {
@@ -86,10 +130,32 @@ export default function MediaManager({
         return
       }
       toast.success("Imagen eliminada")
-      const refreshed = await getMediaInventory()
-      if ("inventory" in refreshed) {
-        setInventory(refreshed.inventory)
+      await reloadInventory()
+    })
+  }
+
+  function handleAssign(filename: string, productId: string) {
+    if (!productId) {
+      toast.error("Seleccioná un producto")
+      return
+    }
+    const product = products.find((p) => p.id === productId)
+    const label = product?.name ?? "este producto"
+    if (
+      !confirm(
+        `¿Asignar esta imagen a "${label}"? Reemplazará la imagen actual del producto.`
+      )
+    ) {
+      return
+    }
+    start(async () => {
+      const result = await assignOrphanMediaToProduct(filename, productId)
+      if ("error" in result) {
+        toast.error(result.error)
+        return
       }
+      toast.success(`Imagen asignada a ${result.productName}`)
+      await reloadInventory()
     })
   }
 
@@ -97,6 +163,43 @@ export default function MediaManager({
 
   return (
     <div className="space-y-6">
+      <div className="bg-card rounded-2xl border border-border p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Subir imagen
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Se guarda en el volumen de subidas. Podés asignarla a un producto
+              desde la lista de huérfanas.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleUpload}
+              disabled={uploading || isPending}
+            />
+            <Button
+              variant="hero"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || isPending}
+            >
+              {uploading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 mr-2" />
+              )}
+              {uploading ? "Subiendo..." : "Elegir archivo"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground max-w-xl">
           {summary.productsStaticOrPlaceholder > 0 && (
@@ -112,7 +215,7 @@ export default function MediaManager({
           variant="outline"
           size="sm"
           onClick={refresh}
-          disabled={isPending}
+          disabled={isPending || uploading}
         >
           <RefreshCw
             className={`w-4 h-4 mr-2 ${isPending ? "animate-spin" : ""}`}
@@ -217,8 +320,10 @@ export default function MediaManager({
                       <FileRow
                         key={file.filename}
                         file={file}
+                        products={products}
                         onDelete={handleDelete}
-                        disabled={isPending}
+                        onAssign={handleAssign}
+                        disabled={isPending || uploading}
                       />
                     ))}
                   </tbody>
@@ -357,13 +462,19 @@ function TabButton({
 
 function FileRow({
   file,
+  products,
   onDelete,
+  onAssign,
   disabled,
 }: {
   file: MediaFileEntry
+  products: ProductForMediaAssignment[]
   onDelete: (filename: string) => void
+  onAssign: (filename: string, productId: string) => void
   disabled: boolean
 }) {
+  const [selectedProductId, setSelectedProductId] = useState("")
+
   return (
     <tr className="hover:bg-muted/20 transition-colors">
       <td className="px-6 py-4">
@@ -421,20 +532,65 @@ function FileRow({
           </ul>
         )}
       </td>
-      <td className="px-6 py-4 text-right">
+      <td className="px-6 py-4">
         {file.status === "orphan" ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            onClick={() => onDelete(file.filename)}
-            disabled={disabled}
-            title="Eliminar archivo huérfano"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          <div className="flex flex-col items-end gap-2 min-w-[220px]">
+            {products.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-right">
+                No hay productos.{" "}
+                <Link href="/admin/productos/nuevo" className="text-primary hover:underline">
+                  Crear uno
+                </Link>
+              </p>
+            ) : (
+              <>
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  disabled={disabled}
+                  className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground"
+                  aria-label="Producto para asignar imagen"
+                >
+                  <option value="">Asignar a producto…</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {!p.isActive ? " (inactivo)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    disabled={disabled || !selectedProductId}
+                    onClick={() =>
+                      onAssign(file.filename, selectedProductId)
+                    }
+                    title="Asignar imagen al producto"
+                  >
+                    <LinkIcon className="w-4 h-4 mr-1" />
+                    Asignar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => onDelete(file.filename)}
+                    disabled={disabled}
+                    title="Eliminar archivo huérfano"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         ) : (
-          <span className="text-xs text-muted-foreground">—</span>
+          <div className="flex justify-end">
+            <span className="text-xs text-muted-foreground">—</span>
+          </div>
         )}
       </td>
     </tr>
