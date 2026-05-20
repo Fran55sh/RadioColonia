@@ -20,11 +20,24 @@ export const userRoleEnum = pgEnum("user_role", ["user", "admin"])
 
 export const orderStatusEnum = pgEnum("order_status", [
   "pending",
+  "confirmed",
+  "preparing",
+  "ready_for_pickup",
   "paid",
   "failed",
   "shipped",
   "delivered",
   "cancelled",
+])
+
+export const fulfillmentTypeEnum = pgEnum("fulfillment_type", [
+  "pickup",
+  "shipping",
+])
+
+export const contactChannelEnum = pgEnum("contact_channel", [
+  "whatsapp",
+  "email",
 ])
 
 // ── Auth.js tables ────────────────────────────────────────────────────────────
@@ -216,25 +229,32 @@ export const addresses = pgTable("addresses", {
 export const orders = pgTable(
   "orders",
   {
-    id:              uuid("id").primaryKey().defaultRandom(),
-    userId:          uuid("user_id").references(() => users.id, { onDelete: "set null" }),
-    status:          orderStatusEnum("status").notNull().default("pending"),
-    subtotal:        numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
-    shipping:        numeric("shipping", { precision: 10, scale: 2 }).notNull().default("0"),
-    total:           numeric("total", { precision: 10, scale: 2 }).notNull(),
-    mpPreferenceId:  text("mp_preference_id"),
-    mpPaymentId:     text("mp_payment_id"),
-    addressId:       uuid("address_id").references(() => addresses.id, { onDelete: "set null" }),
-    // Snapshot of shipping address for non-registered users or address changes
-    shippingFullName: text("shipping_full_name"),
-    shippingPhone:    text("shipping_phone"),
-    shippingStreet:   text("shipping_street"),
-    shippingCity:     text("shipping_city"),
-    shippingProvince: text("shipping_province"),
-    shippingZip:      text("shipping_zip"),
-    shippingCountry:  text("shipping_country"),
-    createdAt:       timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
-    updatedAt:       timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+    id:                      uuid("id").primaryKey().defaultRandom(),
+    userId:                  uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    status:                  orderStatusEnum("status").notNull().default("pending"),
+    fulfillmentType:         fulfillmentTypeEnum("fulfillment_type").notNull().default("pickup"),
+    subtotal:                numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
+    shipping:                numeric("shipping", { precision: 10, scale: 2 }).notNull().default("0"),
+    total:                   numeric("total", { precision: 10, scale: 2 }).notNull(),
+    customerEmail:           text("customer_email"),
+    preferredContactChannel: contactChannelEnum("preferred_contact_channel"),
+    internalNotes:           text("internal_notes"),
+    pickupCode:              text("pickup_code"),
+    mpPreferenceId:          text("mp_preference_id"),
+    mpPaymentId:             text("mp_payment_id"),
+    addressId:               uuid("address_id").references(() => addresses.id, { onDelete: "set null" }),
+    shippingFullName:        text("shipping_full_name"),
+    shippingPhone:           text("shipping_phone"),
+    shippingStreet:          text("shipping_street"),
+    shippingCity:            text("shipping_city"),
+    shippingProvince:        text("shipping_province"),
+    shippingZip:             text("shipping_zip"),
+    shippingCountry:         text("shipping_country"),
+    confirmedAt:             timestamp("confirmed_at", { mode: "date" }),
+    readyAt:                 timestamp("ready_at", { mode: "date" }),
+    deliveredAt:             timestamp("delivered_at", { mode: "date" }),
+    createdAt:               timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt:               timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => ({
     userIdx:   index("orders_user_idx").on(table.userId),
@@ -243,13 +263,31 @@ export const orders = pgTable(
 )
 
 export const orderItems = pgTable("order_items", {
-  id:            uuid("id").primaryKey().defaultRandom(),
-  orderId:       uuid("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
-  productId:     uuid("product_id").references(() => products.id, { onDelete: "set null" }),
-  nameSnapshot:  text("name_snapshot").notNull(),
-  priceSnapshot: numeric("price_snapshot", { precision: 10, scale: 2 }).notNull(),
-  quantity:      integer("quantity").notNull(),
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  orderId:               uuid("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  productId:             uuid("product_id").references(() => products.id, { onDelete: "set null" }),
+  nameSnapshot:          text("name_snapshot").notNull(),
+  priceSnapshot:         numeric("price_snapshot", { precision: 10, scale: 2 }).notNull(),
+  quantity:              integer("quantity").notNull(),
+  skuSnapshot:           text("sku_snapshot"),
+  variantLabelSnapshot:  text("variant_label_snapshot"),
 })
+
+export const orderStatusHistory = pgTable(
+  "order_status_history",
+  {
+    id:              uuid("id").primaryKey().defaultRandom(),
+    orderId:         uuid("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+    fromStatus:      text("from_status"),
+    toStatus:        text("to_status").notNull(),
+    changedByUserId: uuid("changed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    note:            text("note"),
+    createdAt:       timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    orderIdx: index("order_status_history_order_idx").on(table.orderId),
+  })
+)
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -268,3 +306,8 @@ export type CartItem        = typeof cartItems.$inferSelect
 export type Order           = typeof orders.$inferSelect
 export type NewOrder        = typeof orders.$inferInsert
 export type OrderItem       = typeof orderItems.$inferSelect
+export type OrderStatusHistory = typeof orderStatusHistory.$inferSelect
+
+export type OrderStatus = (typeof orderStatusEnum.enumValues)[number]
+export type FulfillmentType = (typeof fulfillmentTypeEnum.enumValues)[number]
+export type ContactChannel = (typeof contactChannelEnum.enumValues)[number]

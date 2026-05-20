@@ -91,9 +91,22 @@ Podés seguir usando solo la app **Dockerfile** + target final `runner`. Definí
 
 **Build argument**: `NEXT_PUBLIC_APP_URL` debe coincidir con la URL pública en el cliente (Coolify suele inyectar build args desde las variables del stack).
 
-### Mercado Pago
+### Pedidos (retiro en local)
 
-Webhook → `https://tu-dominio.com/api/webhooks/mercadopago`.
+Por defecto **`ENABLE_MERCADOPAGO=false`**: el checkout crea órdenes en estado `pending` sin redirigir a MP. El admin confirma y avanza estados en **`/admin/ordenes`**.
+
+Variables recomendadas:
+
+- `NEXT_PUBLIC_PICKUP_ADDRESS` — dirección del local (checkout y mensajes de retiro).
+- `ENABLE_MERCADOPAGO=true` — solo cuando actives pago online (requiere `MP_*` y webhook).
+
+Tras cambios en `schema.ts` / migración `0003_orders_fulfillment.sql`, aplicá migrate o `db:push` una vez.
+
+Seguimiento sin cuenta: **`/pedidos/seguimiento`** (número de pedido + email o teléfono).
+
+### Mercado Pago (opcional / futuro)
+
+Con `ENABLE_MERCADOPAGO=true`, webhook → `https://tu-dominio.com/api/webhooks/mercadopago`.
 
 ### Next.js build y consultas a la base
 
@@ -119,3 +132,5 @@ La página principal consulta la base (**categorías y productos**). Si falla la
 - [ ] `db:seed` solo si querés datos iniciales / admin.
 - [ ] Volumen persistente para `/app/public/uploads` en **`web`**.
 - [ ] Revisar **`/admin/imagenes`** si cambiaste el volumen o sospechás imágenes huérfanas o enlaces rotos.
+- [ ] `ENABLE_MERCADOPAGO=false` y `NEXT_PUBLIC_PICKUP_ADDRESS` definidos para checkout por retiro.
+- [ ] Migración **`0003_orders_fulfillment.sql`** aplicada si actualizaste el esquema de órdenes.

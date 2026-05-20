@@ -29,10 +29,15 @@ const REQUIRED_TABLES = [
   "addresses",
   "orders",
   "order_items",
+  "order_status_history",
 ]
 
 const REQUIRED_COLUMNS: Array<{ table: string; column: string }> = [
   { table: "categories", column: "parent_id" },
+  { table: "orders", column: "fulfillment_type" },
+  { table: "orders", column: "customer_email" },
+  { table: "orders", column: "preferred_contact_channel" },
+  { table: "order_items", column: "sku_snapshot" },
 ]
 
 async function verify() {

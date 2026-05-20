@@ -16,17 +16,24 @@ export default async function CheckoutErrorPage({
           <XCircle className="w-12 h-12 text-red-600" />
         </div>
 
-        <h1 className="text-3xl font-bold text-foreground">Pago rechazado</h1>
+        <h1 className="text-3xl font-bold text-foreground">No se pudo completar</h1>
 
         <p className="text-muted-foreground text-lg">
-          Tu pago no pudo procesarse. Podés intentar nuevamente o usar otro método de pago.
+          Hubo un problema al crear o procesar tu pedido. Podés intentar de nuevo o contactarnos.
         </p>
 
+        {order && (
+          <div className="bg-card rounded-xl border border-border p-4">
+            <p className="text-sm text-muted-foreground">Referencia</p>
+            <p className="font-mono text-sm text-foreground">{order}</p>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href="/carrito">
+          <Link href="/checkout">
             <Button variant="hero">
               <RefreshCw className="w-4 h-4" />
-              Intentar nuevamente
+              Volver al checkout
             </Button>
           </Link>
           <Link href="/productos">

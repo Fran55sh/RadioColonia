@@ -7,24 +7,8 @@ import { eq, desc } from "drizzle-orm"
 import Link from "next/link"
 import { Package, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-
-const statusLabel: Record<string, string> = {
-  pending:   "Pendiente",
-  paid:      "Pagado",
-  failed:    "Fallido",
-  shipped:   "Enviado",
-  delivered: "Entregado",
-  cancelled: "Cancelado",
-}
-
-const statusColor: Record<string, string> = {
-  pending:   "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400",
-  paid:      "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400",
-  failed:    "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400",
-  shipped:   "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
-  delivered: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
-  cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400",
-}
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/order-status"
+import type { OrderStatus } from "@/db/schema"
 
 export default async function OrdenesPage() {
   const session = await auth()
@@ -61,19 +45,27 @@ export default async function OrdenesPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-3 mb-2">
-                        <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusColor[order.status]}`}>
-                          {statusLabel[order.status]}
+                        <span
+                          className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${ORDER_STATUS_COLORS[order.status as OrderStatus]}`}
+                        >
+                          {ORDER_STATUS_LABELS[order.status as OrderStatus]}
                         </span>
-                        <span className="text-xs text-muted-foreground font-mono">#{order.id.slice(0, 8)}</span>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          #{order.id.slice(0, 8)}
+                        </span>
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {new Date(order.createdAt).toLocaleDateString("es-AR", {
-                          year: "numeric", month: "long", day: "numeric",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
                         })}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xl font-bold text-foreground">${parseFloat(order.total).toFixed(2)}</span>
+                      <span className="text-xl font-bold text-foreground">
+                        ${parseFloat(order.total).toFixed(2)}
+                      </span>
                       <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                     </div>
                   </div>

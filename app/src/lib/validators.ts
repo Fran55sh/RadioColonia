@@ -25,6 +25,18 @@ export const addressSchema = z.object({
   country:  z.string().min(2).default("Argentina"),
 })
 
+/** Checkout retiro en local: contacto obligatorio + canal preferido. */
+export const checkoutContactSchema = z.object({
+  fullName:                z.string().min(2, "Ingresá tu nombre completo"),
+  phone:                   z.string().min(8, "Teléfono inválido"),
+  email:                   z.string().email("Email inválido"),
+  preferredContactChannel: z.enum(["whatsapp", "email"], {
+    message: "Elegí un canal de contacto",
+  }),
+})
+
+export type CheckoutContactInput = z.infer<typeof checkoutContactSchema>
+
 export const productSchema = z.object({
   name:          z.string().min(2, "Nombre requerido"),
   description:   z.string().min(10, "Descripción muy corta"),
