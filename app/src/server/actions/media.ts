@@ -15,19 +15,19 @@ import {
   type MediaInventory,
 } from "@/lib/media-inventory"
 
-async function requireAdmin() {
+async function requireAdmin(): Promise<{ error: string } | null> {
   const session = await auth()
   if (!session?.user || session.user.role !== "admin") {
-    return { error: "No autorizado" as const }
+    return { error: "No autorizado" }
   }
-  return { session }
+  return null
 }
 
 export async function getMediaInventory(): Promise<
   { inventory: MediaInventory } | { error: string }
 > {
-  const authResult = await requireAdmin()
-  if ("error" in authResult) return authResult
+  const authError = await requireAdmin()
+  if (authError) return authError
 
   const inventory = await buildMediaInventory()
   return { inventory }
@@ -36,8 +36,8 @@ export async function getMediaInventory(): Promise<
 export async function deleteOrphanMedia(
   filename: string
 ): Promise<{ success: true } | { error: string }> {
-  const authResult = await requireAdmin()
-  if ("error" in authResult) return authResult
+  const authError = await requireAdmin()
+  if (authError) return authError
 
   if (!UPLOAD_PRODUCT_FILENAME_REGEX.test(filename)) {
     return { error: "Nombre de archivo no válido" }
