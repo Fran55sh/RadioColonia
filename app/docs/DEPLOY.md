@@ -39,7 +39,7 @@ docker compose -f docker-compose.prod.yml run --rm migrate npx tsx src/db/seed.t
 
 > El `docker-compose.prod.yml` define variables por defecto `radiocolonia` / `radiocolonia_db` alineadas con un `.env.example` reciente. Ajustá `POSTGRES_*` si usás otros nombres.
 
-Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`** montado en `/app/public/uploads`.
+Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`** montado en `/app/public/uploads`. Para auditar archivos vs. productos (asignadas, huérfanas, enlaces rotos) usá **`/admin/imagenes`** en el panel tras un redeploy o migración.
 
 ---
 
@@ -118,3 +118,4 @@ La página principal consulta la base (**categorías y productos**). Si falla la
 - [ ] Esquema aplicado cuando toque (`--profile migrate run --rm migrate`, job `migrator`, o `drizzle-kit` desde tu PC).
 - [ ] `db:seed` solo si querés datos iniciales / admin.
 - [ ] Volumen persistente para `/app/public/uploads` en **`web`**.
+- [ ] Revisar **`/admin/imagenes`** si cambiaste el volumen o sospechás imágenes huérfanas o enlaces rotos.
