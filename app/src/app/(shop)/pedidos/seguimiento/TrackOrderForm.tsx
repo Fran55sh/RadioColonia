@@ -43,9 +43,10 @@ export default function TrackOrderForm() {
     start(async () => {
       const res = await trackGuestOrder(orderId.trim(), contact.trim())
       if ("error" in res) {
-        setError(res.error)
+        setError(res.error ?? "No se pudo consultar el pedido")
         return
       }
+      if (!("order" in res)) return
       setResult({ order: res.order, items: res.items })
     })
   }

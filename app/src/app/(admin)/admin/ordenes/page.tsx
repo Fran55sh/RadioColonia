@@ -33,7 +33,7 @@ export default async function AdminOrdenesPage({
     q: q ?? undefined,
   })
 
-  const orders = "orders" in result ? result.orders : []
+  const orders = "orders" in result ? (result.orders ?? []) : []
 
   return (
     <div className="p-8">
