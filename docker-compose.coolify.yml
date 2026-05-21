@@ -1,11 +1,6 @@
-# Stack Coolify: web (runner-coolify) + Postgres externo como recurso Database.
-# La app usa DB_HOST / DB_USER / DB_PASSWORD / DB_NAME / DB_PORT (sin DATABASE_URL).
-#
-# Cada deploy: wait-db.js → migrate.sh → node server.js en el mismo contenedor web.
-# Postgres vive fuera del compose; DB_HOST = hostname interno del recurso en Coolify.
-#
-# Red: activar "Connect to Predefined Network" en Coolify Y declarar networks.coolify
-# external abajo. Ver app/docs/DEPLOY.md.
+# Stack Coolify: solo web + Postgres externo (recurso Database).
+# Deploy normal NO toca la BD. Migraciones: recurso Dockerfile target `migrator` (manual).
+# Ver app/docs/DEPLOY.md
 
 name: radiocolonia-coolify
 
@@ -17,7 +12,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runner-coolify
+      target: runner
       args:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     restart: unless-stopped
@@ -36,7 +31,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 90s
+      start_period: 45s
     environment:
       DB_HOST: ${DB_HOST:?}
       DB_USER: ${DB_USER:-postgres}
@@ -48,8 +43,6 @@ services:
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
     volumes:
       - radiocolonia_uploads:/app/public/uploads
 
