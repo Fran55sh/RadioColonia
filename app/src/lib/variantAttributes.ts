@@ -8,9 +8,9 @@ export type ValidateResult =
   | { ok: false; errors: string[] }
 
 const getAllowedSlugs = unstable_cache(
-  async (): Promise<Set<string>> => {
+  async (): Promise<string[]> => {
     const rows = await db.select({ slug: globalAttributes.slug }).from(globalAttributes)
-    return new Set(rows.map((r) => r.slug))
+    return rows.map((r) => r.slug)
   },
   ["global-attribute-slugs"],
   { revalidate: 60 }
@@ -30,7 +30,7 @@ export async function getGlobalAttributeSlugMap(): Promise<Map<string, string>> 
 export async function validateVariantAttributes(
   attributes: Record<string, string>
 ): Promise<ValidateResult> {
-  const allowed = await getAllowedSlugs()
+  const allowed = new Set(await getAllowedSlugs())
   const allowedList = Array.from(allowed).sort().join(", ")
 
   if (Object.keys(attributes).length === 0) {
