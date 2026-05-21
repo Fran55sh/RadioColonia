@@ -1,21 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
-import { parse } from "fast-csv"
-import { Readable } from "stream"
 import { auth } from "@/lib/auth"
 import { db } from "@/db"
 import { globalAttributes } from "@/db/schema"
-import { validateRows, runBulkImportTransaction, type CsvRow } from "@/server/actions/bulkImport"
+import {
+  parseCsvBuffer,
+  validateRows,
+  runBulkImportTransaction,
+} from "@/server/actions/bulkImport"
 import { randomUUID } from "crypto"
 
-const REQUIRED_HEADERS = [
-  "handle",
-  "name",
-  "sale_price",
-  "sku",
-]
-
 export async function POST(req: NextRequest) {
-  // Auth guard — admin only
   const session = await auth()
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 })
@@ -32,51 +26,33 @@ export async function POST(req: NextRequest) {
   }
 
   const file = formData.get("file")
-  if (!file || !(file instanceof Blob)) {
-    return NextResponse.json({ error: 'Se requiere un archivo CSV en el campo "file".' }, { status: 400 })
+  const csvText = formData.get("csv")
+
+  let buffer: Buffer
+  if (file instanceof Blob) {
+    buffer = Buffer.from(await file.arrayBuffer())
+  } else if (typeof csvText === "string" && csvText.trim()) {
+    buffer = Buffer.from(csvText.trim(), "utf8")
+  } else {
+    return NextResponse.json(
+      { error: 'Se requiere un archivo CSV en "file" o contenido CSV en "csv".' },
+      { status: 400 }
+    )
   }
 
-  const raw = Buffer.from(await file.arrayBuffer())
-  // Strip UTF-8 BOM that Excel adds automatically (EF BB BF)
-  const stripped = raw[0] === 0xef && raw[1] === 0xbb && raw[2] === 0xbf
-    ? raw.subarray(3)
-    : raw
+  let rows
+  try {
+    rows = await parseCsvBuffer(buffer)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error al parsear el CSV."
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 
-  // Auto-detect delimiter: Spanish Excel uses ";" by default
-  const firstLine = stripped.toString("utf8").split(/\r?\n/)[0] ?? ""
-  const delimiter = firstLine.includes(";") ? ";" : ","
-  const buffer = stripped
-
-  // Parse CSV into rows using fast-csv
-  const rows = await new Promise<CsvRow[]>((resolve, reject) => {
-    const results: CsvRow[] = []
-    let headersValidated = false
-
-    const readable = Readable.from([buffer])
-    readable
-      .pipe(parse({ headers: true, trim: true, ignoreEmpty: true, delimiter }))
-      .on("headers", (headers: string[]) => {
-        const missing = REQUIRED_HEADERS.filter((h) => !headers.includes(h))
-        if (missing.length > 0) {
-          reject(new Error(
-            `El CSV no tiene las columnas requeridas: ${missing.join(", ")}. ` +
-            `Columnas detectadas: ${headers.join(", ")}.`
-          ))
-        } else {
-          headersValidated = true
-        }
-      })
-      .on("data", (row: CsvRow) => {
-        if (headersValidated) results.push(row)
-      })
-      .on("error", reject)
-      .on("end", () => resolve(results))
-  }).catch((err: Error) => {
-    throw err
-  })
-
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return NextResponse.json({ error: "El archivo CSV está vacío o no tiene filas de datos." }, { status: 400 })
+  if (rows.length === 0) {
+    return NextResponse.json(
+      { error: "El CSV está vacío o no tiene filas de datos." },
+      { status: 400 }
+    )
   }
 
   const attrRows = await db.select({ slug: globalAttributes.slug }).from(globalAttributes)

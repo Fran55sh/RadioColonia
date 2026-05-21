@@ -1,7 +1,15 @@
-
+import { parse } from "fast-csv"
+import { Readable } from "stream"
 import { Pool } from "pg"
 import { tryGetDatabaseUrl } from "@/db/database-url"
 import { slugify } from "@/lib/slugify"
+
+export const REQUIRED_CSV_HEADERS = [
+  "handle",
+  "name",
+  "sale_price",
+  "sku",
+] as const
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +32,47 @@ export interface ImportResult {
   variantsInserted: number
   skippedDuplicates: number
   errors: string[]
+}
+
+// ── CSV parsing ─────────────────────────────────────────────────────────────────
+
+function stripUtf8Bom(buffer: Buffer): Buffer {
+  return buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf
+    ? buffer.subarray(3)
+    : buffer
+}
+
+export async function parseCsvBuffer(buffer: Buffer): Promise<CsvRow[]> {
+  const stripped = stripUtf8Bom(buffer)
+  const firstLine = stripped.toString("utf8").split(/\r?\n/)[0] ?? ""
+  const delimiter = firstLine.includes(";") ? ";" : ","
+
+  return new Promise<CsvRow[]>((resolve, reject) => {
+    const results: CsvRow[] = []
+    let headersValidated = false
+
+    const readable = Readable.from([stripped])
+    readable
+      .pipe(parse({ headers: true, trim: true, ignoreEmpty: true, delimiter }))
+      .on("headers", (headers: string[]) => {
+        const missing = REQUIRED_CSV_HEADERS.filter((h) => !headers.includes(h))
+        if (missing.length > 0) {
+          reject(
+            new Error(
+              `El CSV no tiene las columnas requeridas: ${missing.join(", ")}. ` +
+                `Columnas detectadas: ${headers.join(", ")}.`
+            )
+          )
+        } else {
+          headersValidated = true
+        }
+      })
+      .on("data", (row: CsvRow) => {
+        if (headersValidated) results.push(row)
+      })
+      .on("error", reject)
+      .on("end", () => resolve(results))
+  })
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────
