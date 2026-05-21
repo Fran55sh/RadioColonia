@@ -61,6 +61,7 @@ export default function OrderDetailAdmin({
 
       if (
         newStatus === "ready_for_pickup" &&
+        "order" in result &&
         result.order.preferredContactChannel === "whatsapp" &&
         result.order.shippingPhone
       ) {
@@ -70,6 +71,7 @@ export default function OrderDetailAdmin({
         toast.info("Se abrió WhatsApp para avisar al cliente")
       } else if (
         newStatus === "ready_for_pickup" &&
+        "order" in result &&
         result.order.preferredContactChannel === "email"
       ) {
         toast.info("Avisá al cliente por email que el pedido está listo para retirar")

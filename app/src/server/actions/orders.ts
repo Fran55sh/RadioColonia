@@ -349,7 +349,7 @@ export async function listOrdersAdmin(filters?: {
   q?: string
 }) {
   const authResult = await requireAdmin()
-  if ("error" in authResult) return authResult
+  if ("error" in authResult) return { error: authResult.error }
 
   const conditions = []
   if (filters?.status) {
@@ -389,7 +389,7 @@ export async function listOrdersAdmin(filters?: {
 
 export async function getOrderByIdAdmin(orderId: string) {
   const authResult = await requireAdmin()
-  if ("error" in authResult) return authResult
+  if ("error" in authResult) return { error: authResult.error }
 
   const [order] = await db
     .select()
@@ -419,7 +419,7 @@ export async function updateOrderStatus(
   note?: string
 ) {
   const authResult = await requireAdmin()
-  if ("error" in authResult) return authResult
+  if ("error" in authResult) return { error: authResult.error }
 
   const [order] = await db
     .select()
@@ -501,7 +501,7 @@ export async function updateOrderInternalNotes(
   notes: string
 ) {
   const authResult = await requireAdmin()
-  if ("error" in authResult) return authResult
+  if ("error" in authResult) return { error: authResult.error }
 
   await db
     .update(orders)
