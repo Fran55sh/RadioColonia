@@ -4,6 +4,8 @@ set -euo pipefail
 
 cd /app
 
+node wait-db.js
+
 DRIZZLE="./node_modules/drizzle-kit/bin.cjs"
 TSX_CLI="./node_modules/tsx/dist/cli.mjs"
 

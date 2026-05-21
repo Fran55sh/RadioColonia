@@ -30,6 +30,38 @@ RUN apt-get update && apt-get install -y --no-install-recommends bash && rm -rf 
 RUN sed -i 's/\r$//' migrate.sh && chmod +x migrate.sh
 CMD ["bash", "migrate.sh"]
 
+# Coolify: standalone + tooling de migración; entrypoint wait-db → migrate → server.
+FROM node:20-bookworm-slim AS runner-coolify
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl bash && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV CI=true
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
+
+COPY --from=builder /app/public ./public
+RUN mkdir -p public/uploads/products && chown -R nextjs:nodejs public/uploads
+
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/wait-db.js ./wait-db.js
+COPY --from=builder --chown=nextjs:nodejs /app/migrate.sh ./migrate.sh
+COPY --from=builder --chown=nextjs:nodejs /app/start-coolify.sh ./start-coolify.sh
+COPY --from=builder --chown=nextjs:nodejs /app/src/db ./src/db
+COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+
+RUN sed -i 's/\r$//' migrate.sh start-coolify.sh && chmod +x migrate.sh start-coolify.sh
+
+USER nextjs
+EXPOSE 3000
+
+CMD ["bash", "start-coolify.sh"]
+
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl && rm -rf /var/lib/apt/lists/*

@@ -1,55 +1,15 @@
-# Stack Coolify: Postgres + migrate (job) + web.
+# Stack Coolify: web (runner-coolify) + Postgres externo como recurso Database.
 # La app usa DB_HOST / DB_USER / DB_PASSWORD / DB_NAME / DB_PORT (sin DATABASE_URL).
 #
-# Orden en `docker compose up`: postgres healthy → migrate termina bien (push + staging + seed)
-# → arranca web. Coolify debe incluir todos los servicios del compose en el deploy.
+# Cada deploy: wait-db.js → migrate.sh → node server.js en el mismo contenedor web.
+# Postgres vive fuera del compose; DB_HOST = hostname interno del recurso en Coolify.
 #
-# Para jobs one-shot, `exclude_from_hc` evita que Coolify los marque como "unhealthy" al salir.
-#
-# DB_HOST debe ser el nombre DNS del servicio Postgres DENTRO de la red Compose (`postgres`).
-# Coolify suele definir DB_HOST=127.0.0.1 para dev local; si se inyecta en producción rompe migrate/web
-# porque dentro del contenedor 127.0.0.1 no es Postgres. Por eso forzamos `postgres` literal en migrate/web.
+# Red: activar "Connect to Predefined Network" en Coolify Y declarar networks.coolify
+# external abajo. Ver app/docs/DEPLOY.md.
 
 name: radiocolonia-coolify
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-pass}
-      POSTGRES_DB: ${DB_NAME:-db}
-    volumes:
-      # Si necesitás BD limpia sin tocar la UI: renombrá esta clave (p. ej. postgres_db_data_v3)
-      # y redeploy. El volumen viejo queda huérfano; borralo con `docker volume rm ...` por SSH.
-      - postgres_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 3s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: migrator
-    restart: "no"
-    exclude_from_hc: true
-    environment:
-      DB_HOST: postgres
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-pass}
-      DB_NAME: ${DB_NAME:-db}
-      DB_PORT: ${DB_PORT:-5432}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   # Traefik (Coolify) necesita saber el puerto INTERNO de Node (3000). En la UI, asigná el
   # dominio a ESTE servicio en formato https://tu-dominio.com:3000 (el :3000 no implica abrir
   # 3000 en el navegador; ves https://tu-dominio.com en 443 según docs de Coolify).
@@ -57,12 +17,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runner
+      target: runner-coolify
       args:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     restart: unless-stopped
     ports:
       - "3000:3000"
+    networks:
+      - coolify
     healthcheck:
       test:
         [
@@ -74,14 +36,14 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 45s
+      start_period: 90s
     environment:
-      DB_HOST: postgres
+      DB_HOST: ${DB_HOST:?}
       DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-pass}
+      DB_PASSWORD: ${DB_PASSWORD:?}
       DB_NAME: ${DB_NAME:-db}
       DB_PORT: ${DB_PORT:-5432}
-      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_SECRET: ${AUTH_SECRET:?}
       AUTH_URL: ${AUTH_URL}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
@@ -90,12 +52,10 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
     volumes:
       - radiocolonia_uploads:/app/public/uploads
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+
+networks:
+  coolify:
+    external: true
 
 volumes:
-  postgres_db_data:
   radiocolonia_uploads:

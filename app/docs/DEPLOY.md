@@ -45,44 +45,73 @@ Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`**
 
 ## Coolify
 
-### Docker Compose (`docker-compose.coolify.yml`)
+### Arquitectura
 
-En la **raíz del repo**: [`docker-compose.coolify.yml`](../../docker-compose.coolify.yml).
+- **PostgreSQL**: recurso **Database** independiente en Coolify (no va en el compose).
+- **Aplicación**: [`docker-compose.coolify.yml`](../../docker-compose.coolify.yml) en la raíz del repo — **un solo servicio `web`** (target Docker `runner-coolify`).
+- **Cada deploy**: `wait-db.js` → `migrate.sh` → `node server.js` dentro del mismo contenedor (`start-coolify.sh`).
+- Conexión vía **`DB_HOST`**, **`DB_USER`**, **`DB_PASSWORD`**, **`DB_NAME`**, **`DB_PORT`**. La app arma la URL en [`src/db/database-url.ts`](../src/db/database-url.ts); no uses `DATABASE_URL` en runtime.
 
-- **`postgres`**: `postgres:16-alpine`, volumen **`postgres_data`**. Imagen Postgres usa las mismas credenciales que **`DB_USER`**, **`DB_PASSWORD`**, **`DB_NAME`** que le pasás al stack.
-- **`web`** y **`migrate`** reciben **`DB_HOST`**, **`DB_USER`**, **`DB_PASSWORD`**, **`DB_NAME`**, **`DB_PORT`** (por defecto en el archivo: `DB_HOST=postgres`, puerto 5432). La aplicación **arma la URL en código** ([`src/db/database-url.ts`](../src/db/database-url.ts)); **no** usá `DATABASE_URL` en runtime.
-- **`web`**: `depends_on` **`postgres`** (`service_healthy`); **no** depende de `migrate`.
-- **`migrate`**: perfil **`migrate`**, mismas variables `DB_*`; espera Postgres healthy.
+### 1. Crear PostgreSQL en Coolify
 
-**Migraciones (paso aparte)**
+1. **Project** → **Environment** → **+ New Resource** → **Database** → **PostgreSQL**.
+2. Versión **16**, nombre p. ej. `radiocolonia-db`.
+3. Usuario / contraseña / base de datos → mismos valores que usarás en `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
+4. **No** habilitar Public Port salvo que necesites acceso externo.
+5. Deploy → estado **Running**.
+6. Copiar **Internal URL** (ej. `radiocolonia-db:5432`) → `DB_HOST=radiocolonia-db`, `DB_PORT=5432`.
+
+### 2. Configurar el recurso Docker Compose
+
+1. Recurso **Docker Compose** → archivo **`docker-compose.coolify.yml`** en la raíz.
+2. Activar **Connect to Predefined Network** (conecta `web` a la red `coolify` donde vive Postgres).
+3. El compose declara `networks.coolify.external: true` — verificar por SSH que la red existe: `docker network ls | grep coolify`.
+4. Dominio solo en **`web`**: `https://tu-dominio.com:3000` (Coolify enruta 443 → 3000 interno).
+
+### 3. Variables de entorno (recurso Compose)
+
+| Variable | Notas |
+|----------|-------|
+| `DB_HOST` | Hostname interno del recurso PostgreSQL (**no** `127.0.0.1` ni `postgres`) |
+| `DB_USER` / `DB_PASSWORD` / `DB_NAME` | Idénticos al recurso PostgreSQL |
+| `DB_PORT` | `5432` |
+| `AUTH_SECRET` | Build + Runtime |
+| `AUTH_URL` / `NEXT_PUBLIC_APP_URL` | URL HTTPS pública |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Seed idempotente en cada deploy |
+
+Borrar cualquier `DB_HOST=127.0.0.1` heredado de dev local.
+
+### 4. Deploy y verificación
+
+1. Postgres **Running** antes del redeploy de la app.
+2. Logs de `web` deben mostrar: espera Postgres → pasos `[1/5]`…`[5/5]` → arranque Next.js.
+3. `GET https://tu-dominio.com/api/health` → `{ "ok": true, "db": "up" }`.
+
+### 5. Limpieza del Postgres embebido anterior
+
+Si venías del compose con `postgres` incluido, tras verificar la app:
 
 ```bash
-docker compose -f docker-compose.coolify.yml --env-file /ruta/al/.env --profile migrate run --rm migrate
+docker volume ls | grep postgres_db_data
+docker volume rm <nombre>
 ```
 
-**En Coolify**
+### Alternativa: migraciones como job aparte (dev local / prod local)
 
-1. Recurso **Docker Compose** → **`docker-compose.coolify.yml`** en la raíz.
-2. Variables: **`DB_PASSWORD` fuerte** (y opcionalmente `DB_USER`, `DB_NAME`, **`DB_HOST`** si el hostname real no es el nombre del servicio; el compose por defecto inyecta `DB_HOST=postgres`). También `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`, etc.
-3. `DB_USER` / `DB_PASSWORD` / `DB_NAME` deben coincidir entre la app y el contenedor Postgres del mismo stack. Caracteres raros en la contraseña están bien: la URL se construye con `encodeURIComponent` en la app.
-4. Dominio solo en **`web`**.
+[`docker-compose.prod.yml`](docker-compose.prod.yml) sigue usando Postgres embebido + servicio **`migrate`** (target `migrator`):
 
-**Importante**
+```bash
+docker compose -f docker-compose.prod.yml run --rm migrate
+```
 
-- **No** uses `depends_on migrate` en `web`.
-- **No** uses Post-deployment de `web` para `drizzle-kit`.
-- El stage **`migrator`** usa **`--force`**: revisá `schema.ts` con datos reales.
+También podés usar un recurso Coolify Dockerfile con **Build Target** = `migrator` si preferís separar migraciones de la web (despliegue manual en orden).
 
-### Alternativa: dos aplicaciones Dockerfile
+### Alternativa: dos aplicaciones Dockerfile en Coolify
 
-1. **Migraciones**: recurso A — mismo Git, **Dockerfile** en la raíz, **Build Target** = `migrator`, sin dominio público. El proceso termina al hacer `push` (el panel puede marcar el contenedor como detenido; es esperable).
-2. **Web**: recurso B — mismo Dockerfile, target por defecto **`runner`** (o sin target).
+1. **Migraciones**: recurso A — **Build Target** = `migrator`, sin dominio.
+2. **Web**: recurso B — target **`runner`** (sin migración en entrypoint) o **`runner-coolify`** (con migración integrada).
 
-Coolify **no** despliega ambos en orden automático al hacer push a `main`. Opciones: desplegar **primero** el recurso migraciones y **después** la web (manual), o automatizar con **CI** (GitHub Actions u otro) que llame a la API/webhooks de Coolify en el orden correcto.
-
-### Una sola aplicación Dockerfile (sin Compose)
-
-Podés seguir usando solo la app **Dockerfile** + target final `runner`. Definí **`DB_HOST`**, **`DB_USER`**, **`DB_PASSWORD`**, **`DB_NAME`**, **`DB_PORT`** en el entorno del contenedor; ejecutá migraciones con un job aparte (target `migrator`) o `drizzle-kit push` desde tu máquina con las mismas variables en `.env`.
+Coolify no despliega ambos en orden automático; automatizá con CI o deploy manual.
 
 ### Variables de entorno (referencia)
 
@@ -117,7 +146,7 @@ Las páginas que usan `@/db` están declaradas como **`dynamic = "force-dynamic"
 La página principal consulta la base (**categorías y productos**). Si falla la DB, verás **500**.
 
 1. Abrí **`https://tu-dominio.com/api/health`**. Si `db_env_incomplete`, faltan `DB_*`. Si `database_unreachable`, Postgres no responde en `DB_HOST:DB_PORT` con las credenciales dadas.
-2. Con **Compose Coolify** embebido, aplicá esquema con **`--profile migrate run --rm migrate`** cuando haga falta; hasta tener tablas, la home puede dar **500**.
+2. Con **Compose Coolify**, las migraciones corren en el arranque de `web` (`runner-coolify`); revisá logs si la home da **500** antes de que termine `migrate.sh`.
 3. Revisá los logs del contenedor en Coolify para el stack trace real.
 4. En **dev local**, `DB_HOST=127.0.0.1` y `DB_PORT=5433` con el `docker-compose.yml` de la carpeta `app/`.
 
@@ -125,10 +154,11 @@ La página principal consulta la base (**categorías y productos**). Si falla la
 
 ## Checklist rápido
 
-- [ ] **Coolify Compose**: `docker-compose.coolify.yml`; **`web`** sin `depends_on` a `migrate`; migraciones con perfil `migrate` o job aparte.
-- [ ] Variables **`DB_*`** definidas y coherentes con el Postgres del stack.
+- [ ] **Coolify Compose**: `docker-compose.coolify.yml` con solo **`web`** (`runner-coolify`); Postgres como recurso Database aparte.
+- [ ] **Connect to Predefined Network** activo; `DB_HOST` = hostname interno del Postgres (no `127.0.0.1`).
+- [ ] Variables **`DB_*`** coherentes entre recurso PostgreSQL y Compose.
 - [ ] `AUTH_URL` y `NEXT_PUBLIC_APP_URL` = URL HTTPS real.
-- [ ] Esquema aplicado cuando toque (`--profile migrate run --rm migrate`, job `migrator`, o `drizzle-kit` desde tu PC).
+- [ ] Logs de deploy muestran `migrate.sh` completado antes de servir tráfico.
 - [ ] `db:seed` solo si querés datos iniciales / admin.
 - [ ] Volumen persistente para `/app/public/uploads` en **`web`**.
 - [ ] Revisar **`/admin/imagenes`** si cambiaste el volumen o sospechás imágenes huérfanas o enlaces rotos.
