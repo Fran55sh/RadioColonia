@@ -4,6 +4,7 @@ import { db } from "@/db"
 import { productVariants } from "@/db/schema"
 import { eq } from "drizzle-orm"
 import { productVariantSchema, type ProductVariantInput } from "@/lib/validators"
+import { formatZodError } from "@/lib/zodErrors"
 import { validateVariantAttributes } from "@/lib/variantAttributes"
 import { revalidatePath } from "next/cache"
 
@@ -17,7 +18,7 @@ async function validateVariantPayload(
 > {
   const parsed = productVariantSchema.safeParse(data)
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0].message }
+    return { ok: false, error: formatZodError(parsed.error) }
   }
 
   const attrResult = await validateVariantAttributes(parsed.data.attributes)

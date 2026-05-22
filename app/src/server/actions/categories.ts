@@ -4,6 +4,7 @@ import { db } from "@/db"
 import { categories } from "@/db/schema"
 import { eq, isNull } from "drizzle-orm"
 import { categorySchema } from "@/lib/validators"
+import { formatZodError } from "@/lib/zodErrors"
 import { revalidatePath } from "next/cache"
 
 async function validateParentId(parentId: string | null | undefined, selfId?: string) {
@@ -46,7 +47,7 @@ export async function createCategory(formData: FormData) {
 
   const parsed = categorySchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
+    return { error: formatZodError(parsed.error) }
   }
 
   const parentError = await validateParentId(parsed.data.parentId)
@@ -66,7 +67,7 @@ export async function updateCategory(id: string, formData: FormData) {
 
   const parsed = categorySchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
+    return { error: formatZodError(parsed.error) }
   }
 
   const parentError = await validateParentId(parsed.data.parentId, id)

@@ -6,6 +6,7 @@ import { users } from "@/db/schema"
 import { hash } from "bcryptjs"
 import { eq } from "drizzle-orm"
 import { registerSchema } from "@/lib/validators"
+import { formatZodError } from "@/lib/zodErrors"
 import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 
@@ -47,7 +48,7 @@ export async function registerAction(data: {
 }) {
   const parsed = registerSchema.safeParse(data)
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
+    return { error: formatZodError(parsed.error) }
   }
 
   const existing = await db

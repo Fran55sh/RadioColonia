@@ -13,6 +13,7 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm"
 import { mpPreference } from "@/lib/mercadopago"
 import { checkoutContactSchema } from "@/lib/validators"
 import type { CheckoutContactInput } from "@/lib/validators"
+import { formatZodError } from "@/lib/zodErrors"
 import { auth } from "@/lib/auth"
 import {
   canTransitionPickup,
@@ -185,7 +186,7 @@ export async function createOrder(
 
   const parsed = checkoutContactSchema.safeParse(contactData)
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
+    return { error: formatZodError(parsed.error) }
   }
 
   const session = await auth()
@@ -305,7 +306,7 @@ export async function trackGuestOrder(
 ) {
   const parsed = trackOrderSchema.safeParse({ orderId, contact })
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
+    return { error: formatZodError(parsed.error) }
   }
 
   const contactTrim = parsed.data.contact.trim()

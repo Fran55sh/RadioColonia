@@ -4,6 +4,7 @@ import { db } from "@/db"
 import { products } from "@/db/schema"
 import { eq } from "drizzle-orm"
 import { productSchema } from "@/lib/validators"
+import { formatZodError } from "@/lib/zodErrors"
 import { slugify } from "@/lib/slugify"
 import { syncProductVariants, type VariantPayload } from "@/server/actions/variants"
 import { revalidatePath } from "next/cache"
@@ -28,7 +29,7 @@ export async function createProduct(
 
   const parsed = productSchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
+    return { error: formatZodError(parsed.error) }
   }
 
   const slug = slugify(parsed.data.name)
@@ -84,7 +85,7 @@ export async function updateProduct(
 
   const parsed = productSchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
+    return { error: formatZodError(parsed.error) }
   }
 
   await db

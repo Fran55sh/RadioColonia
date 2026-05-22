@@ -4,6 +4,7 @@ import { db } from "@/db"
 import { globalAttributes, productVariants } from "@/db/schema"
 import { eq, sql } from "drizzle-orm"
 import { globalAttributeSchema } from "@/lib/validators"
+import { formatZodError } from "@/lib/zodErrors"
 import { revalidatePath } from "next/cache"
 
 export async function createGlobalAttribute(formData: FormData) {
@@ -15,7 +16,7 @@ export async function createGlobalAttribute(formData: FormData) {
 
   const parsed = globalAttributeSchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
+    return { error: formatZodError(parsed.error) }
   }
 
   await db.insert(globalAttributes).values(parsed.data)
@@ -32,7 +33,7 @@ export async function updateGlobalAttribute(id: string, formData: FormData) {
 
   const parsed = globalAttributeSchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
+    return { error: formatZodError(parsed.error) }
   }
 
   const [existing] = await db

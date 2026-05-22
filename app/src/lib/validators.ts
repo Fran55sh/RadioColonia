@@ -1,5 +1,22 @@
 import { z } from "zod"
 
+/** Vacío, null o 0 se interpretan como "sin precio". */
+const optionalPositivePrice = z.preprocess(
+  (v) => {
+    if (v === "" || v === null || v === undefined) return null
+    const n = Number(v)
+    if (!Number.isNaN(n) && n === 0) return null
+    return v
+  },
+  z.coerce
+    .number({ message: "Debe ser un número válido" })
+    .positive("Debe ser mayor a 0")
+    .nullable()
+    .optional()
+)
+
+const emptyToNull = (v: unknown) => (v === "" ? null : v)
+
 export const loginSchema = z.object({
   email:    z.string().email("Email inválido"),
   password: z.string().min(6, "Mínimo 6 caracteres"),
@@ -22,7 +39,7 @@ export const addressSchema = z.object({
   city:     z.string().min(2, "Ingresá la ciudad"),
   province: z.string().min(2, "Ingresá la provincia"),
   zip:      z.string().min(4, "Código postal inválido"),
-  country:  z.string().min(2).default("Argentina"),
+  country:  z.string().min(2, "País inválido").default("Argentina"),
 })
 
 /** Checkout retiro en local: contacto obligatorio + canal preferido. */
@@ -40,37 +57,43 @@ export type CheckoutContactInput = z.infer<typeof checkoutContactSchema>
 export const productSchema = z.object({
   name:          z.string().min(2, "Nombre requerido"),
   description:   z.string().min(10, "Descripción muy corta"),
-  price:         z.coerce.number().positive("Precio inválido"),
-  originalPrice: z.coerce.number().positive().optional().nullable(),
+  price:         z.coerce.number({ message: "Precio inválido" }).positive("El precio debe ser mayor a 0"),
+  originalPrice: optionalPositivePrice,
   image:         z.string().min(1, "Imagen requerida"),
   badge:         z.string().optional().nullable(),
-  stock:         z.coerce.number().int().min(0, "Stock inválido"),
-  rating:        z.coerce.number().min(0).max(5).default(0),
-  reviews:       z.coerce.number().int().min(0).default(0),
-  categoryId:    z.string().uuid("Categoría inválida").optional().nullable(),
+  stock:         z.coerce.number({ message: "Stock inválido" }).int().min(0, "El stock no puede ser negativo"),
+  rating:        z.coerce.number().min(0, "El rating no puede ser negativo").max(5, "El rating no puede superar 5").default(0),
+  reviews:       z.coerce.number().int().min(0, "Las reviews no pueden ser negativas").default(0),
+  categoryId:    z.preprocess(
+    emptyToNull,
+    z.string().uuid("Seleccioná una categoría válida").nullable().optional()
+  ),
   isActive:      z.boolean().default(true),
 })
 
 export const categorySchema = z.object({
   name:      z.string().min(2, "Nombre requerido"),
-  slug:      z.string().min(2).regex(/^[a-z0-9-]+$/, "Solo letras, números y guiones"),
+  slug:      z.string().min(2, "El slug debe tener al menos 2 caracteres").regex(/^[a-z0-9-]+$/, "Solo letras, números y guiones"),
   iconName:  z.string().min(1, "Ícono requerido").default("Tag"),
-  sortOrder: z.coerce.number().int().min(0).default(0),
-  parentId:  z.string().uuid("Categoría padre inválida").optional().nullable(),
+  sortOrder: z.coerce.number().int().min(0, "El orden no puede ser negativo").default(0),
+  parentId:  z.preprocess(
+    emptyToNull,
+    z.string().uuid("Categoría padre inválida").nullable().optional()
+  ),
 })
 
 export const globalAttributeSchema = z.object({
   name:      z.string().min(2, "Nombre requerido"),
-  slug:      z.string().min(2).regex(/^[a-z0-9-]+$/, "Solo letras, números y guiones"),
-  sortOrder: z.coerce.number().int().min(0).default(0),
+  slug:      z.string().min(2, "El slug debe tener al menos 2 caracteres").regex(/^[a-z0-9-]+$/, "Solo letras, números y guiones"),
+  sortOrder: z.coerce.number().int().min(0, "El orden no puede ser negativo").default(0),
 })
 
 export const productVariantSchema = z.object({
   id:         z.string().uuid().optional(),
   sku:        z.string().min(1, "SKU requerido"),
-  stock:      z.coerce.number().int().min(0, "Stock inválido"),
-  costPrice:  z.coerce.number().positive().optional().nullable(),
-  salePrice:  z.coerce.number().positive().optional().nullable(),
+  stock:      z.coerce.number({ message: "Stock inválido" }).int().min(0, "El stock no puede ser negativo"),
+  costPrice:  optionalPositivePrice,
+  salePrice:  optionalPositivePrice,
   attributes: z.record(z.string(), z.string()),
 })
 
