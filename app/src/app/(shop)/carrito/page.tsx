@@ -1,6 +1,6 @@
 "use client"
 
-import { useCart } from "@/contexts/CartContext"
+import { useCart, cartKey } from "@/contexts/CartContext"
 import { Button } from "@/components/ui/button"
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, ArrowLeft } from "lucide-react"
 import Image from "next/image"
@@ -37,8 +37,10 @@ export default function CarritoPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Items */}
           <div className="lg:col-span-2 space-y-4">
-            {items.map((item) => (
-              <div key={item.id} className="flex gap-4 p-4 bg-card rounded-2xl border border-border">
+            {items.map((item) => {
+              const key = cartKey(item)
+              return (
+              <div key={key} className="flex gap-4 p-4 bg-card rounded-2xl border border-border">
                 <div className="w-24 h-24 rounded-xl bg-gradient-silver flex-shrink-0 overflow-hidden">
                   <Image
                     src={item.image}
@@ -54,6 +56,9 @@ export default function CarritoPage() {
                       {item.name}
                     </h3>
                   </Link>
+                  {item.variantLabel && (
+                    <p className="text-xs text-muted-foreground mb-1">{item.variantLabel}</p>
+                  )}
                   <div className="flex items-center gap-2 mb-3">
                     <span className="font-bold text-foreground text-lg">${item.price.toFixed(2)}</span>
                     {item.originalPrice && (
@@ -67,7 +72,7 @@ export default function CarritoPage() {
                       <Button
                         variant="outline" size="icon"
                         className="h-8 w-8"
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(key, item.quantity - 1)}
                       >
                         <Minus className="w-3 h-3" />
                       </Button>
@@ -75,7 +80,7 @@ export default function CarritoPage() {
                       <Button
                         variant="outline" size="icon"
                         className="h-8 w-8"
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(key, item.quantity + 1)}
                       >
                         <Plus className="w-3 h-3" />
                       </Button>
@@ -87,7 +92,7 @@ export default function CarritoPage() {
                       <Button
                         variant="ghost" size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeItem(item.id)}
+                        onClick={() => removeItem(key)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -95,7 +100,7 @@ export default function CarritoPage() {
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
 
             <Button
               variant="ghost"

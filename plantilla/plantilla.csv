@@ -1,3 +1,5 @@
-handle,name,category_slug,description,cost_price,sale_price,sku,stock,attribute_name,attribute_value,image_filename
-auriculares-bt,Auriculares BT,audio,Descripción del producto,1500,2500,AUR-BT-001,50,Color,Negro,auriculares-bt.jpg
-auriculares-bt,Auriculares BT,audio,Descripción del producto,1500,2500,AUR-BT-002,30,Color,Blanco,auriculares-bt.jpg
+handle,name,category_slug,description,cost_price,sale_price,sku,stock,supplier,supplier_code,supplier_stock,attribute_name,attribute_value,image_filename
+utp-cat6-2m,Cable UTP Cat6 2m,redes,Cable de red UTP categoría 6 - 2 metros,1200,2500,utp6-020,100,proveedor-lta,lta020,100,,,utp-cat6.jpg
+utp-cat6-2m,Cable UTP Cat6 2m,redes,Cable de red UTP categoría 6 - 2 metros,1150,2500,utp6-020,80,proveedor-121,121-1200,80,,,utp-cat6.jpg
+auriculares-bt,Auriculares BT,audio,Descripción del producto,1500,2500,AUR-BT-001,50,proveedor-a,AUR-BT-NEG,50,Color,Negro,auriculares-bt.jpg
+auriculares-bt,Auriculares BT,audio,Descripción del producto,1480,2500,AUR-BT-002,30,proveedor-a,AUR-BT-BLA,30,Color,Blanco,auriculares-bt.jpg

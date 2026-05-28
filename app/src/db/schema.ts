@@ -180,6 +180,54 @@ export const productVariants = pgTable(
   })
 )
 
+// ── Suppliers (admin only) ────────────────────────────────────────────────────
+
+export const suppliers = pgTable(
+  "suppliers",
+  {
+    id:          uuid("id").primaryKey().defaultRandom(),
+    name:        text("name").notNull(),
+    slug:        text("slug").notNull(),
+    contactName: text("contact_name"),
+    email:       text("email"),
+    phone:       text("phone"),
+    notes:       text("notes"),
+    isActive:    boolean("is_active").notNull().default(true),
+    createdAt:   timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt:   timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    slugIdx: uniqueIndex("suppliers_slug_idx").on(table.slug),
+  })
+)
+
+export const productSupplierOffers = pgTable(
+  "product_supplier_offers",
+  {
+    id:             uuid("id").primaryKey().defaultRandom(),
+    variantId:      uuid("variant_id").notNull().references(() => productVariants.id, { onDelete: "cascade" }),
+    supplierId:     uuid("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+    supplierCode:   text("supplier_code").notNull(),
+    costPrice:      numeric("cost_price", { precision: 10, scale: 2 }),
+    stock:          integer("stock").notNull().default(0),
+    isPreferred:    boolean("is_preferred").notNull().default(false),
+    lastCostUpdate: timestamp("last_cost_update", { mode: "date" }),
+    createdAt:      timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt:      timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    supplierCodeIdx:    uniqueIndex("product_supplier_offers_supplier_code_idx").on(
+      table.supplierId,
+      table.supplierCode
+    ),
+    variantSupplierIdx: uniqueIndex("product_supplier_offers_variant_supplier_idx").on(
+      table.variantId,
+      table.supplierId
+    ),
+    variantIdx: index("product_supplier_offers_variant_idx").on(table.variantId),
+  })
+)
+
 // ── Cart ──────────────────────────────────────────────────────────────────────
 
 export const carts = pgTable(
@@ -271,6 +319,9 @@ export const orderItems = pgTable("order_items", {
   quantity:              integer("quantity").notNull(),
   skuSnapshot:           text("sku_snapshot"),
   variantLabelSnapshot:  text("variant_label_snapshot"),
+  supplierIdSnapshot:    uuid("supplier_id_snapshot"),
+  supplierCodeSnapshot:  text("supplier_code_snapshot"),
+  costPriceSnapshot:     numeric("cost_price_snapshot", { precision: 10, scale: 2 }),
 })
 
 export const orderStatusHistory = pgTable(
@@ -301,6 +352,10 @@ export type Product         = typeof products.$inferSelect
 export type NewProduct      = typeof products.$inferInsert
 export type ProductVariant  = typeof productVariants.$inferSelect
 export type NewProductVariant = typeof productVariants.$inferInsert
+export type Supplier = typeof suppliers.$inferSelect
+export type NewSupplier = typeof suppliers.$inferInsert
+export type ProductSupplierOffer = typeof productSupplierOffers.$inferSelect
+export type NewProductSupplierOffer = typeof productSupplierOffers.$inferInsert
 export type Cart            = typeof carts.$inferSelect
 export type CartItem        = typeof cartItems.$inferSelect
 export type Order           = typeof orders.$inferSelect

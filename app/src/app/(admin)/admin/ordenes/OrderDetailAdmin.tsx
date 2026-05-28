@@ -183,7 +183,15 @@ export default function OrderDetailAdmin({
                   )}
                   {item.skuSnapshot && (
                     <p className="text-xs text-muted-foreground font-mono">
-                      SKU: {item.skuSnapshot}
+                      SKU venta: {item.skuSnapshot}
+                    </p>
+                  )}
+                  {item.supplierCodeSnapshot && (
+                    <p className="text-xs text-muted-foreground font-mono">
+                      Cód. proveedor: {item.supplierCodeSnapshot}
+                      {item.costPriceSnapshot && (
+                        <> · costo ${parseFloat(item.costPriceSnapshot).toFixed(2)}</>
+                      )}
                     </p>
                   )}
                   <p className="text-muted-foreground">x{item.quantity}</p>

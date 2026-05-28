@@ -10,6 +10,9 @@ import { Upload, CheckCircle2, XCircle, FileText, Loader2, ClipboardPaste } from
 interface ImportResult {
   productsInserted: number
   variantsInserted: number
+  variantsUpdated?: number
+  offersInserted?: number
+  offersUpdated?: number
   skippedDuplicates: number
   totalRows: number
 }
@@ -28,7 +31,7 @@ type State =
 type InputMode = "file" | "text"
 
 const CSV_COLUMNS_HINT =
-  "Columnas: handle, name, category_slug, description, cost_price, sale_price, sku, stock, attribute_name (slug global, ej. color), attribute_value, image_filename"
+  "Columnas: handle, name, category_slug, description, cost_price, sale_price, sku (universal), stock, supplier (slug), supplier_code, supplier_stock, attribute_name, attribute_value, image_filename"
 
 export default function BulkImportForm() {
   const [state, setState] = useState<State>({ status: "idle" })
@@ -138,7 +141,7 @@ export default function BulkImportForm() {
             <Textarea
               value={csvText}
               onChange={handleTextChange}
-              placeholder={`Pegá acá el contenido del CSV, incluyendo la fila de encabezados.\n\nhandle,name,category_slug,description,cost_price,sale_price,sku,stock,attribute_name,attribute_value,image_filename\nmi-producto,Mi Producto,categoria,Descripción,1000,1500,SKU-001,10,color,Negro,imagen.jpg`}
+              placeholder={`handle,name,category_slug,description,cost_price,sale_price,sku,stock,supplier,supplier_code,supplier_stock,attribute_name,attribute_value,image_filename\nutp-cat6-2m,Cable UTP,redes,Desc,1200,2500,utp6-020,100,proveedor-a,lta020,100,,,imagen.jpg`}
               className="min-h-56 font-mono text-xs bg-charcoal/30 border-white/20"
               spellCheck={false}
             />
@@ -172,15 +175,21 @@ export default function BulkImportForm() {
           <AlertTitle className="text-green-400">Importación completada</AlertTitle>
           <AlertDescription className="text-green-300 space-y-1 mt-1">
             <p>
-              Se {state.result.productsInserted === 1 ? "insertó" : "insertaron"}{" "}
-              <strong>{state.result.productsInserted}</strong>{" "}
-              producto{state.result.productsInserted !== 1 ? "s" : ""} y{" "}
-              <strong>{state.result.variantsInserted}</strong>{" "}
-              variante{state.result.variantsInserted !== 1 ? "s" : ""} correctamente.
+              Productos nuevos: <strong>{state.result.productsInserted}</strong> · Variantes nuevas:{" "}
+              <strong>{state.result.variantsInserted}</strong>
+              {state.result.variantsUpdated != null && state.result.variantsUpdated > 0 && (
+                <> · Variantes actualizadas: <strong>{state.result.variantsUpdated}</strong></>
+              )}
             </p>
+            {(state.result.offersInserted != null || state.result.offersUpdated != null) && (
+              <p>
+                Ofertas proveedor: <strong>{state.result.offersInserted ?? 0}</strong> nuevas,{" "}
+                <strong>{state.result.offersUpdated ?? 0}</strong> actualizadas
+              </p>
+            )}
             {state.result.skippedDuplicates > 0 && (
               <p className="text-yellow-400">
-                {state.result.skippedDuplicates} fila{state.result.skippedDuplicates !== 1 ? "s" : ""} omitida{state.result.skippedDuplicates !== 1 ? "s" : ""} por SKU duplicado.
+                {state.result.skippedDuplicates} fila(s) sin cambios en ofertas.
               </p>
             )}
           </AlertDescription>
@@ -207,13 +216,13 @@ export default function BulkImportForm() {
       <div className="rounded-xl border border-white/10 bg-charcoal/20 p-5 space-y-3">
         <h3 className="text-sm font-semibold text-white">Formato esperado del CSV</h3>
         <p className="text-xs text-muted-foreground">
-          Cada fila representa una variante. Productos con el mismo <code className="text-primary">handle</code> se agrupan automáticamente.
-          El campo <code className="text-primary">attribute_name</code> debe ser un slug del catálogo global (ej. <code className="text-primary">color</code>, <code className="text-primary">talle</code>).
+          El <code className="text-primary">sku</code> es el código universal de venta. Varias filas con el mismo SKU
+          representan distintos proveedores (códigos internos y costos). Los proveedores deben existir en Admin → Proveedores.
         </p>
         <pre className="text-xs text-silver-light overflow-x-auto bg-background/50 rounded p-3 leading-relaxed">
-{`handle,name,category_slug,description,cost_price,sale_price,sku,stock,attribute_name,attribute_value,image_filename
-auriculares-bt,Auriculares BT,audio,Descripción del producto,1500,2500,AUR-BT-001,50,Color,Negro,auriculares-bt.jpg
-auriculares-bt,Auriculares BT,audio,Descripción del producto,1500,2500,AUR-BT-002,30,Color,Blanco,auriculares-bt.jpg`}
+{`handle,name,category_slug,description,cost_price,sale_price,sku,stock,supplier,supplier_code,supplier_stock,attribute_name,attribute_value,image_filename
+utp-cat6-2m,Cable UTP,redes,Desc,1200,2500,utp6-020,100,proveedor-a,lta020,100,,,utp.jpg
+utp-cat6-2m,Cable UTP,redes,Desc,1150,2500,utp6-020,80,proveedor-b,121-1200,80,,,utp.jpg`}
         </pre>
       </div>
     </div>

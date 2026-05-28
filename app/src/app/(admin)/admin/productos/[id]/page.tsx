@@ -2,6 +2,9 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/db"
 import { products, categories, globalAttributes, productVariants } from "@/db/schema"
+import type { ProductSupplierOffer } from "@/db/schema"
+import { getAllSuppliers } from "@/server/actions/suppliers"
+import { getSupplierOffersByProductId } from "@/server/actions/variants"
 import { eq, asc } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import ProductForm from "../ProductForm"
@@ -21,7 +24,7 @@ export default async function EditProductoPage({ params }: Props) {
 
   if (!product) notFound()
 
-  const [cats, attrs, variants] = await Promise.all([
+  const [cats, attrs, variants, supplierList, offers] = await Promise.all([
     db
       .select({
         id:       categories.id,
@@ -36,7 +39,17 @@ export default async function EditProductoPage({ params }: Props) {
       .from(productVariants)
       .where(eq(productVariants.productId, id))
       .orderBy(asc(productVariants.createdAt)),
+    getAllSuppliers(),
+    getSupplierOffersByProductId(id),
   ])
+
+  const initialOffersByVariantId: Record<string, ProductSupplierOffer[]> = {}
+  for (const offer of offers) {
+    if (!initialOffersByVariantId[offer.variantId]) {
+      initialOffersByVariantId[offer.variantId] = []
+    }
+    initialOffersByVariantId[offer.variantId].push(offer)
+  }
 
   return (
     <div className="p-8">
@@ -44,8 +57,10 @@ export default async function EditProductoPage({ params }: Props) {
       <ProductForm
         categories={cats}
         globalAttributes={attrs}
+        suppliers={supplierList}
         product={product}
         initialVariants={variants}
+        initialOffersByVariantId={initialOffersByVariantId}
       />
     </div>
   )

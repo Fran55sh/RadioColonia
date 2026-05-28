@@ -208,12 +208,35 @@ async function seed() {
     }
   }
 
+  // Default supplier for seed data
+  let defaultSupplierId: string | undefined
+  const existingSupplier = await db
+    .select()
+    .from(schema.suppliers)
+    .where(eq(schema.suppliers.slug, "sin-asignar"))
+    .limit(1)
+
+  if (existingSupplier.length === 0) {
+    const [inserted] = await db
+      .insert(schema.suppliers)
+      .values({
+        name:  "Proveedor sin asignar",
+        slug:  "sin-asignar",
+        notes: "Proveedor por defecto del sistema",
+      })
+      .returning({ id: schema.suppliers.id })
+    defaultSupplierId = inserted.id
+    console.log("  ✓ Supplier: Proveedor sin asignar")
+  } else {
+    defaultSupplierId = existingSupplier[0].id
+  }
+
   // Sample variants for smartphone
   const phoneId = productIdBySlug["pro-max-smartphone-256gb"]
-  if (phoneId) {
+  if (phoneId && defaultSupplierId) {
     const sampleVariants = [
-      { sku: "PHONE-256-BLK", stock: 25, salePrice: "999.99", costPrice: "750.00", attributes: { color: "Negro" } },
-      { sku: "PHONE-256-WHT", stock: 25, salePrice: "999.99", costPrice: "750.00", attributes: { color: "Blanco" } },
+      { sku: "PHONE-256-BLK", stock: 25, salePrice: "999.99", costPrice: "750.00", supplierCode: "PH-BLK-INT", attributes: { color: "Negro" } },
+      { sku: "PHONE-256-WHT", stock: 25, salePrice: "999.99", costPrice: "750.00", supplierCode: "PH-WHT-INT", attributes: { color: "Blanco" } },
     ]
     for (const v of sampleVariants) {
       const exists = await db
@@ -222,13 +245,25 @@ async function seed() {
         .where(eq(schema.productVariants.sku, v.sku))
         .limit(1)
       if (exists.length === 0) {
-        await db.insert(schema.productVariants).values({
-          productId: phoneId,
-          sku:       v.sku,
-          stock:     v.stock,
-          salePrice: v.salePrice,
-          costPrice: v.costPrice,
-          attributes: v.attributes,
+        const [variant] = await db
+          .insert(schema.productVariants)
+          .values({
+            productId:  phoneId,
+            sku:        v.sku,
+            stock:      v.stock,
+            salePrice:  v.salePrice,
+            costPrice:  null,
+            attributes: v.attributes,
+          })
+          .returning({ id: schema.productVariants.id })
+
+        await db.insert(schema.productSupplierOffers).values({
+          variantId:    variant.id,
+          supplierId:   defaultSupplierId,
+          supplierCode: v.supplierCode,
+          costPrice:    v.costPrice,
+          stock:        v.stock,
+          isPreferred:  true,
         })
         console.log(`  ✓ Variant: ${v.sku}`)
       }

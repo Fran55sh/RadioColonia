@@ -7,6 +7,7 @@ import {
   orderStatusHistory,
   products,
   productVariants,
+  productSupplierOffers,
 } from "@/db/schema"
 import type { OrderStatus } from "@/db/schema"
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm"
@@ -81,14 +82,38 @@ async function resolveLineItem(item: CartItemInput) {
       } as const
     }
 
+    const [preferredOffer] = await db
+      .select()
+      .from(productSupplierOffers)
+      .where(
+        and(
+          eq(productSupplierOffers.variantId, variant.id),
+          eq(productSupplierOffers.isPreferred, true)
+        )
+      )
+      .limit(1)
+
+    const fallbackOffer =
+      preferredOffer ??
+      (
+        await db
+          .select()
+          .from(productSupplierOffers)
+          .where(eq(productSupplierOffers.variantId, variant.id))
+          .limit(1)
+      )[0]
+
     return {
       ok: {
-        productId:     product.id,
-        name:          product.name,
+        productId:            product.id,
+        name:                 product.name,
         unitPrice,
-        quantity:      item.quantity,
-        skuSnapshot:   variant.sku,
-        variantLabel:  item.variantLabel ?? null,
+        quantity:             item.quantity,
+        skuSnapshot:          variant.sku,
+        variantLabel:         item.variantLabel ?? null,
+        supplierIdSnapshot:   fallbackOffer?.supplierId ?? null,
+        supplierCodeSnapshot: fallbackOffer?.supplierCode ?? null,
+        costPriceSnapshot:    fallbackOffer?.costPrice ?? null,
       },
     } as const
   }
@@ -106,12 +131,15 @@ async function resolveLineItem(item: CartItemInput) {
 
   return {
     ok: {
-      productId:     product.id,
-      name:          product.name,
+      productId:            product.id,
+      name:                 product.name,
       unitPrice,
-      quantity:      item.quantity,
-      skuSnapshot:   null as string | null,
-      variantLabel:  null as string | null,
+      quantity:             item.quantity,
+      skuSnapshot:          null as string | null,
+      variantLabel:         null as string | null,
+      supplierIdSnapshot:   null as string | null,
+      supplierCodeSnapshot: null as string | null,
+      costPriceSnapshot:    null as string | null,
     },
   } as const
 }
@@ -199,6 +227,9 @@ export async function createOrder(
     quantity: number
     skuSnapshot: string | null
     variantLabel: string | null
+    supplierIdSnapshot: string | null
+    supplierCodeSnapshot: string | null
+    costPriceSnapshot: string | null
   }> = []
 
   for (const item of cartItems) {
@@ -239,6 +270,9 @@ export async function createOrder(
       quantity:             line.quantity,
       skuSnapshot:          line.skuSnapshot,
       variantLabelSnapshot: line.variantLabel,
+      supplierIdSnapshot:     line.supplierIdSnapshot,
+      supplierCodeSnapshot:   line.supplierCodeSnapshot,
+      costPriceSnapshot:    line.costPriceSnapshot,
     }))
   )
 

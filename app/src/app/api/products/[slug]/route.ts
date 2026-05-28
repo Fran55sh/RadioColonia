@@ -40,7 +40,6 @@ export async function GET(
       stock:      productVariants.stock,
       attributes: productVariants.attributes,
       salePrice:  productVariants.salePrice,
-      costPrice:  productVariants.costPrice,
     })
     .from(productVariants)
     .where(eq(productVariants.productId, product.id))

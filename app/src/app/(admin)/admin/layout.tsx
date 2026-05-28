@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Zap, LayoutDashboard, Package, Tag, ShoppingBag, LogOut, SlidersHorizontal, Image as ImageIcon } from "lucide-react"
+import { Zap, LayoutDashboard, Package, Tag, ShoppingBag, LogOut, SlidersHorizontal, Image as ImageIcon, Truck } from "lucide-react"
 import { logoutAction } from "@/server/actions/auth"
 import { Button } from "@/components/ui/button"
 import { auth } from "@/lib/auth"
@@ -11,6 +11,7 @@ const navItems = [
   { href: "/admin/imagenes",   label: "Imágenes",    icon: ImageIcon },
   { href: "/admin/categorias", label: "Categorías",  icon: Tag },
   { href: "/admin/atributos",  label: "Atributos",   icon: SlidersHorizontal },
+  { href: "/admin/proveedores", label: "Proveedores", icon: Truck },
   { href: "/admin/ordenes",    label: "Órdenes",     icon: ShoppingBag },
 ]
 

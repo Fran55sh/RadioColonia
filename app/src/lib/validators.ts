@@ -88,6 +88,25 @@ export const globalAttributeSchema = z.object({
   sortOrder: z.coerce.number().int().min(0, "El orden no puede ser negativo").default(0),
 })
 
+export const supplierSchema = z.object({
+  name:        z.string().min(2, "Nombre requerido"),
+  slug:        z.string().min(2, "El slug debe tener al menos 2 caracteres").regex(/^[a-z0-9-]+$/, "Solo letras, números y guiones"),
+  contactName: z.string().optional().nullable(),
+  email:       z.string().email("Email inválido").optional().nullable().or(z.literal("")),
+  phone:       z.string().optional().nullable(),
+  notes:       z.string().optional().nullable(),
+  isActive:    z.boolean().default(true),
+})
+
+export const supplierOfferSchema = z.object({
+  id:           z.string().uuid().optional(),
+  supplierId:   z.string().uuid("Seleccioná un proveedor"),
+  supplierCode: z.string().min(1, "Código del proveedor requerido"),
+  costPrice:    optionalPositivePrice,
+  stock:        z.coerce.number({ message: "Stock inválido" }).int().min(0, "El stock no puede ser negativo").default(0),
+  isPreferred:  z.boolean().default(false),
+})
+
 export const productVariantSchema = z.object({
   id:         z.string().uuid().optional(),
   sku:        z.string().min(1, "SKU requerido"),
@@ -95,6 +114,7 @@ export const productVariantSchema = z.object({
   costPrice:  optionalPositivePrice,
   salePrice:  optionalPositivePrice,
   attributes: z.record(z.string(), z.string()),
+  supplierOffers: z.array(supplierOfferSchema).optional().default([]),
 })
 
 export type LoginInput           = z.infer<typeof loginSchema>
@@ -103,4 +123,6 @@ export type AddressInput         = z.infer<typeof addressSchema>
 export type ProductInput         = z.infer<typeof productSchema>
 export type CategoryInput        = z.infer<typeof categorySchema>
 export type GlobalAttributeInput = z.infer<typeof globalAttributeSchema>
+export type SupplierInput        = z.infer<typeof supplierSchema>
+export type SupplierOfferInput   = z.infer<typeof supplierOfferSchema>
 export type ProductVariantInput  = z.infer<typeof productVariantSchema>

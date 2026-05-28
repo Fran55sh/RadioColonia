@@ -29,7 +29,7 @@ interface CartContextType {
 }
 
 /** Items with the same product id but different SKU must be separate cart entries */
-function cartKey(item: Pick<CartItem, "id" | "sku">) {
+export function cartKey(item: Pick<CartItem, "id" | "sku">) {
   return item.sku ? `${item.id}::${item.sku}` : item.id
 }
 

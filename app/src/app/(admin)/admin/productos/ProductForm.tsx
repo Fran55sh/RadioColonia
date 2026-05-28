@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { createProduct, updateProduct } from "@/server/actions/products"
 import { toast } from "sonner"
 import { Upload, Loader2 } from "lucide-react"
-import type { GlobalAttribute, Product, ProductVariant } from "@/db/schema"
+import type { GlobalAttribute, Product, ProductSupplierOffer, ProductVariant, Supplier } from "@/db/schema"
 import ProductVariantsEditor, {
   buildInitialVariants,
   getEnabledSlugsFromVariants,
@@ -25,13 +25,17 @@ export interface CategoryOption {
 export default function ProductForm({
   categories,
   globalAttributes,
+  suppliers,
   product,
   initialVariants = [],
+  initialOffersByVariantId = {},
 }: {
   categories:       CategoryOption[]
   globalAttributes: GlobalAttribute[]
+  suppliers:        Supplier[]
   product?:         Product
   initialVariants?: ProductVariant[]
+  initialOffersByVariantId?: Record<string, ProductSupplierOffer[]>
 }) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -64,7 +68,7 @@ export default function ProductForm({
   const effectiveCategoryId = subcategoryId || parentCategoryId || ""
 
   const [variants, setVariants] = useState<VariantRow[]>(() =>
-    buildInitialVariants(initialVariants)
+    buildInitialVariants(initialVariants, initialOffersByVariantId)
   )
   const [enabledAttributeSlugs, setEnabledAttributeSlugs] = useState<string[]>(() =>
     getEnabledSlugsFromVariants(initialVariants)
@@ -267,11 +271,12 @@ export default function ProductForm({
       <div className="bg-card rounded-2xl border border-border p-8 space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Variantes</h2>
         <p className="text-sm text-muted-foreground">
-          Elegí atributos del catálogo global y definí combinaciones con valores libres por producto.
+          El <strong>SKU universal</strong> es el código de venta en la tienda. Los códigos de proveedor,
+          costos y stock por proveedor son solo para administración.
         </p>
         <ProductVariantsEditor
           globalAttributes={globalAttributes}
-          initialVariants={initialVariants}
+          suppliers={suppliers}
           enabledAttributeSlugs={enabledAttributeSlugs}
           onEnabledAttributesChange={setEnabledAttributeSlugs}
           variants={variants}

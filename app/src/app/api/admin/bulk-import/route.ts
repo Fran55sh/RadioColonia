@@ -74,6 +74,9 @@ export async function POST(req: NextRequest) {
       success: true,
       productsInserted: result.productsInserted,
       variantsInserted: result.variantsInserted,
+      variantsUpdated: result.variantsUpdated,
+      offersInserted: result.offersInserted,
+      offersUpdated: result.offersUpdated,
       skippedDuplicates: result.skippedDuplicates,
       totalRows: rows.length,
     })
