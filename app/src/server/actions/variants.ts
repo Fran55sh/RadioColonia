@@ -1,11 +1,13 @@
 "use server"
 
 import { db } from "@/db"
-import { productSupplierOffers, productVariants } from "@/db/schema"
-import { and, eq, inArray } from "drizzle-orm"
+import { productSupplierOffers, productVariants, products } from "@/db/schema"
+import { and, eq, ilike, inArray, sql } from "drizzle-orm"
 import {
+  linkSupplierCodeSchema,
   productVariantSchema,
   supplierOfferSchema,
+  type LinkSupplierCodeInput,
   type ProductVariantInput,
   type SupplierOfferInput,
 } from "@/lib/validators"
@@ -303,4 +305,170 @@ export async function getSupplierOffersByProductId(productId: string) {
     .where(inArray(productSupplierOffers.variantId, variantIds))
 
   return offers
+}
+
+export type CatalogSkuOption = {
+  sku:         string
+  variantId:   string
+  productId:   string
+  productName: string
+  stock:       number
+  salePrice:   string | null
+}
+
+export async function searchCatalogSkus(query: string): Promise<CatalogSkuOption[]> {
+  const q = query.trim()
+  if (!q) return []
+
+  const pattern = `%${q}%`
+  const rows = await db
+    .select({
+      sku:         productVariants.sku,
+      variantId:   productVariants.id,
+      productId:   products.id,
+      productName: products.name,
+      stock:       productVariants.stock,
+      salePrice:   productVariants.salePrice,
+    })
+    .from(productVariants)
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(ilike(productVariants.sku, pattern))
+    .orderBy(productVariants.sku)
+    .limit(25)
+
+  return rows
+}
+
+export async function getCatalogSkuExact(sku: string): Promise<CatalogSkuOption | null> {
+  const trimmed = sku.trim()
+  if (!trimmed) return null
+
+  const [row] = await db
+    .select({
+      sku:         productVariants.sku,
+      variantId:   productVariants.id,
+      productId:   products.id,
+      productName: products.name,
+      stock:       productVariants.stock,
+      salePrice:   productVariants.salePrice,
+    })
+    .from(productVariants)
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(eq(productVariants.sku, trimmed))
+    .limit(1)
+
+  return row ?? null
+}
+
+export async function linkSupplierCodeToParentSku(input: LinkSupplierCodeInput) {
+  const parsed = linkSupplierCodeSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: formatZodError(parsed.error) }
+  }
+
+  const data = parsed.data
+  const parent = await getCatalogSkuExact(data.parentSku)
+  if (!parent) {
+    return { error: `No existe un SKU universal "${data.parentSku}". Creá primero el producto padre.` }
+  }
+
+  const [existingCode] = await db
+    .select({
+      id:        productSupplierOffers.id,
+      variantId: productSupplierOffers.variantId,
+    })
+    .from(productSupplierOffers)
+    .where(
+      and(
+        eq(productSupplierOffers.supplierId, data.supplierId),
+        eq(productSupplierOffers.supplierCode, data.supplierCode.trim())
+      )
+    )
+    .limit(1)
+
+  if (existingCode && existingCode.variantId !== parent.variantId) {
+    return {
+      error: `El código "${data.supplierCode}" ya está asignado a otro SKU en este proveedor.`,
+    }
+  }
+
+  const [existingOnVariant] = await db
+    .select({ id: productSupplierOffers.id })
+    .from(productSupplierOffers)
+    .where(
+      and(
+        eq(productSupplierOffers.variantId, parent.variantId),
+        eq(productSupplierOffers.supplierId, data.supplierId)
+      )
+    )
+    .limit(1)
+
+  const offerValues = {
+    variantId:      parent.variantId,
+    supplierId:     data.supplierId,
+    supplierCode:   data.supplierCode.trim(),
+    costPrice:      data.costPrice != null ? data.costPrice.toFixed(2) : null,
+    stock:          data.supplierStock,
+    isPreferred:    data.isPreferred,
+    lastCostUpdate: data.costPrice != null ? new Date() : null,
+    updatedAt:      new Date(),
+  }
+
+  if (existingOnVariant) {
+    await db
+      .update(productSupplierOffers)
+      .set({
+        ...offerValues,
+        supplierCode: data.supplierCode.trim(),
+      })
+      .where(eq(productSupplierOffers.id, existingOnVariant.id))
+  } else if (existingCode) {
+    await db
+      .update(productSupplierOffers)
+      .set(offerValues)
+      .where(eq(productSupplierOffers.id, existingCode.id))
+  } else {
+    await db.insert(productSupplierOffers).values(offerValues)
+  }
+
+  if (data.isPreferred) {
+    await db
+      .update(productSupplierOffers)
+      .set({ isPreferred: false, updatedAt: new Date() })
+      .where(
+        and(
+          eq(productSupplierOffers.variantId, parent.variantId),
+          sql`${productSupplierOffers.supplierId} <> ${data.supplierId}`
+        )
+      )
+    await db
+      .update(productSupplierOffers)
+      .set({ isPreferred: true, updatedAt: new Date() })
+      .where(
+        and(
+          eq(productSupplierOffers.variantId, parent.variantId),
+          eq(productSupplierOffers.supplierId, data.supplierId)
+        )
+      )
+  }
+
+  if (data.addToSaleStock && data.supplierStock > 0) {
+    await db
+      .update(productVariants)
+      .set({
+        stock: sql`${productVariants.stock} + ${data.supplierStock}`,
+      })
+      .where(eq(productVariants.id, parent.variantId))
+  }
+
+  revalidatePath("/admin/productos")
+  revalidatePath(`/admin/productos/${parent.productId}`)
+  revalidatePath("/")
+
+  return {
+    success:    true,
+    productId:  parent.productId,
+    variantId:  parent.variantId,
+    parentSku:  parent.sku,
+  }
 }

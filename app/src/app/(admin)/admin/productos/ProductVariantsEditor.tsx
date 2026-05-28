@@ -105,6 +105,9 @@ export default function ProductVariantsEditor({
     for (const slug of enabledAttributeSlugs) {
       emptyAttrs[slug] = ""
     }
+    if (variants.length === 0 && enabledAttributeSlugs.length === 0 && globalAttributes.length > 0) {
+      onEnabledAttributesChange([])
+    }
     onVariantsChange([
       ...variants,
       {
@@ -163,25 +166,15 @@ export default function ProductVariantsEditor({
     })
   }
 
-  if (globalAttributes.length === 0) {
-    return (
-      <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-        No hay atributos globales.{" "}
-        <a href="/admin/atributos" className="text-primary underline">
-          Creá atributos
-        </a>{" "}
-        (ej. color, talle) antes de agregar variantes.
-      </div>
-    )
-  }
-
   const attrBySlug = Object.fromEntries(globalAttributes.map((a) => [a.slug, a]))
   const supplierById = Object.fromEntries(suppliers.map((s) => [s.id, s]))
+  const hasAttributes = globalAttributes.length > 0
 
   return (
     <div className="space-y-4">
+      {hasAttributes ? (
       <div>
-        <h3 className="text-sm font-medium text-foreground mb-2">Atributos para este producto</h3>
+        <h3 className="text-sm font-medium text-foreground mb-2">Atributos para este producto (opcional)</h3>
         <div className="flex flex-wrap gap-2">
           {globalAttributes.map((attr) => (
             <label
@@ -204,6 +197,15 @@ export default function ProductVariantsEditor({
           ))}
         </div>
       </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Sin atributos globales: podés cargar solo SKU universal y proveedores.{" "}
+          <a href="/admin/atributos" className="text-primary underline">
+            Agregar atributos
+          </a>{" "}
+          si necesitás color, talle, etc.
+        </p>
+      )}
 
       {suppliers.length === 0 && (
         <p className="text-sm text-amber-600 dark:text-amber-400">
@@ -215,19 +217,18 @@ export default function ProductVariantsEditor({
         </p>
       )}
 
-      {enabledAttributeSlugs.length > 0 && (
-        <>
+      <>
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-foreground">Variantes (SKU universal)</h3>
+            <h3 className="text-sm font-medium text-foreground">SKU universal (producto padre en tienda)</h3>
             <Button type="button" variant="outline" size="sm" onClick={addVariant}>
               <Plus className="w-4 h-4" />
-              Agregar variante
+              Agregar SKU
             </Button>
           </div>
 
           {variants.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Sin variantes: el producto usa precio y stock del formulario principal.
+              Sin SKU: el producto usa precio y stock del formulario principal arriba.
             </p>
           ) : (
             <div className="space-y-6">
@@ -435,8 +436,7 @@ export default function ProductVariantsEditor({
               ))}
             </div>
           )}
-        </>
-      )}
+      </>
     </div>
   )
 }

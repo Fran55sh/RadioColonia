@@ -6,7 +6,7 @@ import { eq, desc, sql } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Plus, FileSpreadsheet } from "lucide-react"
+import { Plus, FileSpreadsheet, Link2 } from "lucide-react"
 import ProductsTable from "./ProductsTable"
 
 const parentCategory = alias(categories, "parent_category")
@@ -54,6 +54,12 @@ export default async function AdminProductosPage() {
             <Button variant="dark">
               <FileSpreadsheet className="w-4 h-4" />
               Importar CSV
+            </Button>
+          </Link>
+          <Link href="/admin/productos/vincular">
+            <Button variant="outline">
+              <Link2 className="w-4 h-4" />
+              Vincular código
             </Button>
           </Link>
           <Link href="/admin/productos/nuevo">

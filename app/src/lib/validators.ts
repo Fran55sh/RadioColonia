@@ -107,6 +107,17 @@ export const supplierOfferSchema = z.object({
   isPreferred:  z.boolean().default(false),
 })
 
+/** Vincular código interno de proveedor a un SKU universal ya existente. */
+export const linkSupplierCodeSchema = z.object({
+  parentSku:      z.string().min(1, "SKU padre requerido"),
+  supplierId:     z.string().uuid("Seleccioná un proveedor"),
+  supplierCode:   z.string().min(1, "Código del proveedor requerido"),
+  costPrice:      optionalPositivePrice,
+  supplierStock:  z.coerce.number().int().min(0, "El stock no puede ser negativo").default(0),
+  addToSaleStock: z.boolean().default(true),
+  isPreferred:    z.boolean().default(false),
+})
+
 export const productVariantSchema = z.object({
   id:         z.string().uuid().optional(),
   sku:        z.string().min(1, "SKU requerido"),
@@ -125,4 +136,5 @@ export type CategoryInput        = z.infer<typeof categorySchema>
 export type GlobalAttributeInput = z.infer<typeof globalAttributeSchema>
 export type SupplierInput        = z.infer<typeof supplierSchema>
 export type SupplierOfferInput   = z.infer<typeof supplierOfferSchema>
+export type LinkSupplierCodeInput = z.infer<typeof linkSupplierCodeSchema>
 export type ProductVariantInput  = z.infer<typeof productVariantSchema>

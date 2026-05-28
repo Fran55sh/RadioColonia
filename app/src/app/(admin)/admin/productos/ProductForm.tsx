@@ -9,6 +9,8 @@ import { createProduct, updateProduct } from "@/server/actions/products"
 import { toast } from "sonner"
 import { Upload, Loader2 } from "lucide-react"
 import type { GlobalAttribute, Product, ProductSupplierOffer, ProductVariant, Supplier } from "@/db/schema"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import LinkSupplierCodeForm from "./LinkSupplierCodeForm"
 import ProductVariantsEditor, {
   buildInitialVariants,
   getEnabledSlugsFromVariants,
@@ -131,7 +133,31 @@ export default function ProductForm({
     })
   }
 
-  return (
+  if (!product) {
+    return (
+      <Tabs defaultValue="catalog" className="max-w-3xl">
+        <TabsList className="w-full mb-6">
+          <TabsTrigger value="catalog" className="flex-1">
+            Producto nuevo (SKU universal)
+          </TabsTrigger>
+          <TabsTrigger value="link" className="flex-1">
+            Código proveedor → SKU padre
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="catalog">
+          {renderCatalogForm()}
+        </TabsContent>
+        <TabsContent value="link">
+          <LinkSupplierCodeForm suppliers={suppliers} />
+        </TabsContent>
+      </Tabs>
+    )
+  }
+
+  return renderCatalogForm()
+
+  function renderCatalogForm() {
+    return (
     <form onSubmit={handleSubmit} className="max-w-3xl space-y-8">
       <div className="bg-card rounded-2xl border border-border p-8 space-y-6">
         {error && (
@@ -269,10 +295,12 @@ export default function ProductForm({
       </div>
 
       <div className="bg-card rounded-2xl border border-border p-8 space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Variantes</h2>
+        <h2 className="text-lg font-semibold text-foreground">SKU universal y proveedores</h2>
         <p className="text-sm text-muted-foreground">
-          El <strong>SKU universal</strong> es el código de venta en la tienda. Los códigos de proveedor,
-          costos y stock por proveedor son solo para administración.
+          El <strong>SKU universal</strong> (ej. utp6-020) es lo que compra el cliente en la tienda.
+          Debajo cargá cada <strong>código interno del proveedor</strong> (ej. lta020, 121-1200) con su costo y stock.
+          Si solo tenés un código de proveedor para un SKU que ya existe, usá la pestaña{" "}
+          <strong>Código proveedor → SKU padre</strong>.
         </p>
         <ProductVariantsEditor
           globalAttributes={globalAttributes}
@@ -301,5 +329,6 @@ export default function ProductForm({
         </Button>
       </div>
     </form>
-  )
+    )
+  }
 }
