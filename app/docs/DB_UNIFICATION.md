@@ -62,5 +62,5 @@ En Docker unificado: `DB_NAME=radiocolonia_db` para ambos servicios.
 
 ## Migraciones
 
-1. Ecommerce: `src/db/migrations/*.sql` + `drizzle-kit push` (`migrate.sh`).
-2. POS: solo `schema.pos.sql` (tablas `pos_*`), **sin** seed de catálogo en producción.
+1. **Ecommerce (única autoridad):** `src/db/migrations/*.sql` (incl. `0005_pos_operational_tables.sql` para `pos_*`) + `drizzle-kit push` vía [`migrate.sh`](../migrate.sh). Debe correr en cada deploy del ecommerce.
+2. **POS:** solo verificación al arrancar (`npm run db:verify`). **Sin DDL** ni seed de catálogo en producción.

@@ -24,12 +24,22 @@ const REQUIRED_TABLES = [
   "global_attributes",
   "products",
   "product_variants",
+  "product_supplier_offers",
+  "suppliers",
   "carts",
   "cart_items",
   "addresses",
   "orders",
   "order_items",
   "order_status_history",
+  // Tablas operativas POS (única autoridad: 0005_pos_operational_tables.sql)
+  "pos_clientes",
+  "pos_ventas",
+  "pos_lineas_venta",
+  "pos_iva_registro",
+  "pos_ordenes_compra",
+  "pos_ordenes_compra_lineas",
+  "pos_facturas_compra",
 ]
 
 const REQUIRED_COLUMNS: Array<{ table: string; column: string }> = [

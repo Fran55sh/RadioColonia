@@ -81,13 +81,16 @@ Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`**
 ### 4. Orden del primer deploy
 
 1. Postgres **Running**
-2. Deploy **migrator** → logs: `✅ Migración + seed completados.`
+2. Deploy **migrator** → logs: `✅ Migración + seed completados.` (incluye tablas `pos_*` para el POS).
 3. Deploy **web** (Compose)
-4. `GET https://www.radiocolonia.com.ar/api/health` → `{ "ok": true, "db": "up" }`
+4. Deploy **POS** (stack `radio-colonia-pos`, mismas `DB_*`)
+5. `GET https://www.radiocolonia.com.ar/api/health` → `{ "ok": true, "db": "up" }`
 
-### 5. Deploys siguientes (solo código, sin schema)
+### 5. Deploys siguientes
 
-- Redeploy **solo web**. No se ejecuta migrate ni seed.
+- Redeploy **web** sin cambios de schema: no hace falta migrator.
+- Tras cambios en `schema.ts` o `src/db/migrations/*.sql` (incl. `pos_*`): correr **migrator** antes de redeployar web o POS.
+- El POS **no** crea tablas; si falta `pos_ventas`, el deploy del POS falla al arrancar → correr migrator del ecommerce.
 
 ### 6. Limpieza del Postgres embebido anterior
 
