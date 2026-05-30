@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -12,6 +13,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
 import type { AdapterAccountType } from "next-auth/adapters"
 
 // ── Enums ────────────────────────────────────────────────────────────────────
@@ -151,6 +153,7 @@ export const products = pgTable(
     slugIdx:       uniqueIndex("products_slug_idx").on(table.slug),
     categoryIdx:   index("products_category_idx").on(table.categoryId),
     isActiveIdx:   index("products_is_active_idx").on(table.isActive),
+    stockNonNegative: check("products_stock_non_negative", sql`${table.stock} >= 0`),
   })
 )
 
@@ -177,6 +180,10 @@ export const productVariants = pgTable(
   (table) => ({
     skuIdx:       uniqueIndex("product_variants_sku_idx").on(table.sku),
     productIdx:   index("product_variants_product_idx").on(table.productId),
+    stockNonNegative: check(
+      "product_variants_stock_non_negative",
+      sql`${table.stock} >= 0`,
+    ),
   })
 )
 

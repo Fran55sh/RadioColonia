@@ -11,6 +11,11 @@ import {
 } from "@/db/schema"
 import type { OrderStatus } from "@/db/schema"
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm"
+import {
+  decrementProductStockTx,
+  decrementVariantStockTx,
+  InsufficientStockError,
+} from "@/lib/inventory"
 import { mpPreference } from "@/lib/mercadopago"
 import { checkoutContactSchema } from "@/lib/validators"
 import type { CheckoutContactInput } from "@/lib/validators"
@@ -172,24 +177,19 @@ async function decrementStockForOrderTx(tx: DbTx, orderId: string) {
     if (!item.productId) continue
 
     if (item.skuSnapshot) {
-      await tx
-        .update(productVariants)
-        .set({
-          stock: sql`${productVariants.stock} - ${item.quantity}`,
-        })
-        .where(
-          and(
-            eq(productVariants.productId, item.productId),
-            eq(productVariants.sku, item.skuSnapshot)
-          )
-        )
+      await decrementVariantStockTx(
+        tx,
+        item.productId,
+        item.skuSnapshot,
+        item.quantity,
+      )
     } else {
-      await tx
-        .update(products)
-        .set({
-          stock: sql`${products.stock} - ${item.quantity}`,
-        })
-        .where(eq(products.id, item.productId))
+      await decrementProductStockTx(
+        tx,
+        item.productId,
+        item.quantity,
+        item.nameSnapshot,
+      )
     }
   }
 }
@@ -500,21 +500,28 @@ export async function updateOrderStatus(
     updates.deliveredAt = now
   }
 
-  await db.transaction(async (tx) => {
-    await tx.update(orders).set(updates).where(eq(orders.id, orderId))
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(orders).set(updates).where(eq(orders.id, orderId))
 
-    if (newStatus === "confirmed" && current === "pending") {
-      await decrementStockForOrderTx(tx, orderId)
-    }
+      if (newStatus === "confirmed" && current === "pending") {
+        await decrementStockForOrderTx(tx, orderId)
+      }
 
-    await tx.insert(orderStatusHistory).values({
-      orderId,
-      fromStatus:        current,
-      toStatus:          newStatus,
-      changedByUserId:   authResult.userId,
-      note:              note ?? null,
+      await tx.insert(orderStatusHistory).values({
+        orderId,
+        fromStatus:        current,
+        toStatus:          newStatus,
+        changedByUserId:   authResult.userId,
+        note:              note ?? null,
+      })
     })
-  })
+  } catch (err) {
+    if (err instanceof InsufficientStockError) {
+      return { error: err.message }
+    }
+    throw err
+  }
 
   revalidatePath("/admin/ordenes")
   revalidatePath(`/admin/ordenes/${orderId}`)

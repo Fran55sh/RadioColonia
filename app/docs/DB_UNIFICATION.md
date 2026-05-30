@@ -60,6 +60,17 @@ Ambos canales comparten el mismo campo de stock por SKU.
 
 En Docker unificado: `DB_NAME=radiocolonia_db` para ambos servicios.
 
+## Stock unificado (ecommerce + POS)
+
+Ambos canales descuentan `product_variants.stock` (o `products.stock` sin variante).
+
+| Canal | Momento del descuento | Bloqueo |
+|-------|----------------------|---------|
+| POS | Al registrar venta (`processSale`) | `SELECT … FOR UPDATE` + `UPDATE … WHERE stock >= cantidad` |
+| Ecommerce | Al confirmar pedido (`pending` → `confirmed`) | `SELECT … FOR UPDATE` + `UPDATE … WHERE stock >= cantidad` (`src/lib/inventory.ts`) |
+
+La base incluye `CHECK (stock >= 0)` en `product_variants` y `products` (migración `0006_stock_non_negative.sql`) como red de seguridad ante condiciones de carrera.
+
 ## Migraciones
 
 1. **Ecommerce (única autoridad):** `src/db/migrations/*.sql` (incl. `0005_pos_operational_tables.sql` para `pos_*`) + `drizzle-kit push` vía [`migrate.sh`](../migrate.sh). Debe correr en cada deploy del ecommerce.
