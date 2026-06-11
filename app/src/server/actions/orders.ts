@@ -57,82 +57,70 @@ async function resolveLineItem(item: CartItemInput) {
     return { error: `Producto no disponible: ${item.name}` as const }
   }
 
-  if (item.sku?.trim()) {
-    const [variant] = await db
-      .select()
-      .from(productVariants)
-      .where(
-        and(
-          eq(productVariants.productId, product.id),
-          eq(productVariants.sku, item.sku.trim())
+  const variantsForProduct = item.sku?.trim()
+    ? await db
+        .select()
+        .from(productVariants)
+        .where(
+          and(
+            eq(productVariants.productId, product.id),
+            eq(productVariants.sku, item.sku.trim())
+          )
         )
-      )
-      .limit(1)
+        .limit(1)
+    : await db
+        .select()
+        .from(productVariants)
+        .where(eq(productVariants.productId, product.id))
+        .limit(2)
 
-    if (!variant) {
-      return { error: `Variante no encontrada (${item.sku})` as const }
-    }
-
-    const unitPrice = variant.salePrice
-      ? parseFloat(variant.salePrice)
-      : parseFloat(product.price)
-
-    if (!pricesMatch(unitPrice, item.price)) {
-      return { error: `El precio de "${item.name}" cambió. Actualizá el carrito.` as const }
-    }
-
-    if (variant.stock < item.quantity) {
-      return {
-        error: `Stock insuficiente para "${item.name}" (${variant.stock} disponibles)`,
-      } as const
-    }
-
-    const [preferredOffer] = await db
-      .select()
-      .from(productSupplierOffers)
-      .where(
-        and(
-          eq(productSupplierOffers.variantId, variant.id),
-          eq(productSupplierOffers.isPreferred, true)
-        )
-      )
-      .limit(1)
-
-    const fallbackOffer =
-      preferredOffer ??
-      (
-        await db
-          .select()
-          .from(productSupplierOffers)
-          .where(eq(productSupplierOffers.variantId, variant.id))
-          .limit(1)
-      )[0]
-
-    return {
-      ok: {
-        productId:            product.id,
-        name:                 product.name,
-        unitPrice,
-        quantity:             item.quantity,
-        skuSnapshot:          variant.sku,
-        variantLabel:         item.variantLabel ?? null,
-        supplierIdSnapshot:   fallbackOffer?.supplierId ?? null,
-        supplierCodeSnapshot: fallbackOffer?.supplierCode ?? null,
-        costPriceSnapshot:    fallbackOffer?.costPrice ?? null,
-      },
-    } as const
+  if (item.sku?.trim() && variantsForProduct.length === 0) {
+    return { error: `Variante no encontrada (${item.sku})` as const }
   }
 
-  const unitPrice = parseFloat(product.price)
+  if (!item.sku?.trim() && variantsForProduct.length === 0) {
+    return { error: `Producto sin SKU vendible: ${item.name}` as const }
+  }
+
+  if (!item.sku?.trim() && variantsForProduct.length > 1) {
+    return { error: `Seleccioná una variante para "${item.name}".` as const }
+  }
+
+  const variant = variantsForProduct[0]
+  const unitPrice = variant.salePrice
+    ? parseFloat(variant.salePrice)
+    : parseFloat(product.price)
+
   if (!pricesMatch(unitPrice, item.price)) {
     return { error: `El precio de "${item.name}" cambió. Actualizá el carrito.` as const }
   }
 
-  if (product.stock < item.quantity) {
+  if (variant.stock < item.quantity) {
     return {
-      error: `Stock insuficiente para "${item.name}" (${product.stock} disponibles)`,
+      error: `Stock insuficiente para "${item.name}" (${variant.stock} disponibles)`,
     } as const
   }
+
+  const [preferredOffer] = await db
+    .select()
+    .from(productSupplierOffers)
+    .where(
+      and(
+        eq(productSupplierOffers.variantId, variant.id),
+        eq(productSupplierOffers.isPreferred, true)
+      )
+    )
+    .limit(1)
+
+  const fallbackOffer =
+    preferredOffer ??
+    (
+      await db
+        .select()
+        .from(productSupplierOffers)
+        .where(eq(productSupplierOffers.variantId, variant.id))
+        .limit(1)
+    )[0]
 
   return {
     ok: {
@@ -140,11 +128,11 @@ async function resolveLineItem(item: CartItemInput) {
       name:                 product.name,
       unitPrice,
       quantity:             item.quantity,
-      skuSnapshot:          null as string | null,
-      variantLabel:         null as string | null,
-      supplierIdSnapshot:   null as string | null,
-      supplierCodeSnapshot: null as string | null,
-      costPriceSnapshot:    null as string | null,
+      skuSnapshot:          variant.sku,
+      variantLabel:         item.variantLabel ?? null,
+      supplierIdSnapshot:   fallbackOffer?.supplierId ?? null,
+      supplierCodeSnapshot: fallbackOffer?.supplierCode ?? null,
+      costPriceSnapshot:    fallbackOffer?.costPrice ?? null,
     },
   } as const
 }

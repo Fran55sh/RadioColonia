@@ -107,9 +107,9 @@ export const supplierOfferSchema = z.object({
   isPreferred:  z.boolean().default(false),
 })
 
-/** Vincular código interno de proveedor a un SKU universal ya existente. */
+/** Vincular código interno de proveedor a un SKU vendible ya existente. */
 export const linkSupplierCodeSchema = z.object({
-  parentSku:      z.string().min(1, "SKU padre requerido"),
+  parentSku:      z.string().min(1, "SKU vendible requerido"),
   supplierId:     z.string().uuid("Seleccioná un proveedor"),
   supplierCode:   z.string().min(1, "Código del proveedor requerido"),
   costPrice:      optionalPositivePrice,

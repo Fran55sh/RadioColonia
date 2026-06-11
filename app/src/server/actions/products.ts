@@ -3,11 +3,26 @@
 import { db } from "@/db"
 import { products } from "@/db/schema"
 import { eq } from "drizzle-orm"
-import { productSchema } from "@/lib/validators"
+import { productSchema, type ProductInput } from "@/lib/validators"
 import { formatZodError } from "@/lib/zodErrors"
 import { slugify } from "@/lib/slugify"
 import { syncProductVariants, type VariantPayload } from "@/server/actions/variants"
 import { revalidatePath } from "next/cache"
+
+function defaultVariantForProduct(
+  slug: string,
+  productId: string,
+  product: ProductInput
+): VariantPayload {
+  return {
+    sku: `${slug.toUpperCase()}-${productId.slice(0, 8)}`,
+    stock: product.stock,
+    costPrice: null,
+    salePrice: null,
+    attributes: {},
+    supplierOffers: [],
+  }
+}
 
 export async function createProduct(
   formData: FormData,
@@ -52,11 +67,13 @@ export async function createProduct(
     })
     .returning({ id: products.id })
 
-  if (variants && variants.length > 0) {
-    const syncResult = await syncProductVariants(inserted.id, variants)
-    if (!syncResult.success) {
-      return syncResult
-    }
+  const variantsToSync = variants?.length
+    ? variants
+    : [defaultVariantForProduct(slug, inserted.id, parsed.data)]
+
+  const syncResult = await syncProductVariants(inserted.id, variantsToSync)
+  if (!syncResult.success) {
+    return syncResult
   }
 
   revalidatePath("/admin/productos")
@@ -107,7 +124,11 @@ export async function updateProduct(
     .where(eq(products.id, id))
 
   if (variants !== undefined) {
-    const syncResult = await syncProductVariants(id, variants)
+    const variantsToSync = variants.length
+      ? variants
+      : [defaultVariantForProduct(slugify(parsed.data.name), id, parsed.data)]
+
+    const syncResult = await syncProductVariants(id, variantsToSync)
     if (!syncResult.success) {
       return syncResult
     }

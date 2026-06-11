@@ -82,7 +82,7 @@ export default function ProductDetailPage() {
   const originalPrice = product.originalPrice ? parseFloat(product.originalPrice) : null
   const discount      = originalPrice ? Math.round((1 - price / originalPrice) * 100) : null
   const rating        = parseFloat(product.rating)
-  const activeStock   = selected ? selected.stock : product.stock
+  const activeStock   = selected ? selected.stock : 0
 
   // Group variant attribute keys for rendering separate selectors (e.g. "Color", "Talle")
   const attributeKeys = variants.length > 0
@@ -101,8 +101,8 @@ export default function ProductDetailPage() {
   }
 
   const handleAddToCart = () => {
-    if (variants.length > 0 && !selected) {
-      toast.error("Seleccioná una variante antes de agregar al carrito.")
+    if (!selected) {
+      toast.error("Este producto todavía no tiene un SKU vendible.")
       return
     }
 
@@ -113,8 +113,8 @@ export default function ProductDetailPage() {
       price,
       originalPrice: originalPrice ?? undefined,
       image:         product.image,
-      sku:           selected?.sku,
-      variantLabel:  selected ? buildVariantLabel(selected) : undefined,
+      sku:           selected.sku,
+      variantLabel:  buildVariantLabel(selected) || undefined,
     })
 
     for (let i = 1; i < qty; i++) {
@@ -125,8 +125,8 @@ export default function ProductDetailPage() {
         price,
         originalPrice: originalPrice ?? undefined,
         image:         product.image,
-        sku:           selected?.sku,
-        variantLabel:  selected ? buildVariantLabel(selected) : undefined,
+        sku:           selected.sku,
+        variantLabel:  buildVariantLabel(selected) || undefined,
       })
     }
 

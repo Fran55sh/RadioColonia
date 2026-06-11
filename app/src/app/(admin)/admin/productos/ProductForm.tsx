@@ -138,10 +138,10 @@ export default function ProductForm({
       <Tabs defaultValue="catalog" className="max-w-3xl">
         <TabsList className="w-full mb-6">
           <TabsTrigger value="catalog" className="flex-1">
-            Producto nuevo (SKU universal)
+            Producto nuevo
           </TabsTrigger>
           <TabsTrigger value="link" className="flex-1">
-            Código proveedor → SKU padre
+            Código proveedor → SKU vendible
           </TabsTrigger>
         </TabsList>
         <TabsContent value="catalog">
@@ -226,7 +226,9 @@ export default function ProductForm({
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Stock *</label>
             <Input name="stock" type="number" min="0" defaultValue={product?.stock ?? 0} required />
-            <p className="text-xs text-muted-foreground mt-1">Stock base si no hay variantes</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Se usa para crear la variante default si no cargás variantes visibles.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Badge</label>
@@ -295,12 +297,12 @@ export default function ProductForm({
       </div>
 
       <div className="bg-card rounded-2xl border border-border p-8 space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">SKU universal y proveedores</h2>
+        <h2 className="text-lg font-semibold text-foreground">SKU vendible y proveedores</h2>
         <p className="text-sm text-muted-foreground">
-          El <strong>SKU universal</strong> (ej. utp6-020) es lo que compra el cliente en la tienda.
+          El <strong>SKU vendible</strong> (ej. utp6-020) identifica la unidad real que se vende y descuenta stock.
           Debajo cargá cada <strong>código interno del proveedor</strong> (ej. lta020, 121-1200) con su costo y stock.
           Si solo tenés un código de proveedor para un SKU que ya existe, usá la pestaña{" "}
-          <strong>Código proveedor → SKU padre</strong>.
+          <strong>Código proveedor → SKU vendible</strong>.
         </p>
         <ProductVariantsEditor
           globalAttributes={globalAttributes}

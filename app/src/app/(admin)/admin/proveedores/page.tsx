@@ -10,7 +10,7 @@ export default async function ProveedoresPage() {
     <div className="p-8">
       <h1 className="text-2xl font-bold text-foreground mb-2">Proveedores</h1>
       <p className="text-sm text-muted-foreground mb-8">
-        Gestioná proveedores y sus códigos internos desde cada producto/variante (SKU universal).
+        Gestioná proveedores y sus códigos internos desde cada producto/variante (SKU vendible).
       </p>
       <SuppliersAdmin suppliers={suppliers} />
     </div>

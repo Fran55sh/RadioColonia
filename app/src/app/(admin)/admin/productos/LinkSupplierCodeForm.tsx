@@ -107,7 +107,7 @@ export default function LinkSupplierCodeForm({ suppliers }: { suppliers: Supplie
 
         <div className="space-y-2">
           <label className="block text-sm font-medium text-foreground">
-            SKU padre (producto en tienda) *
+            SKU vendible *
           </label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -161,7 +161,7 @@ export default function LinkSupplierCodeForm({ suppliers }: { suppliers: Supplie
           )}
           {parentSku.trim() && !parentInfo && skuSuggestions.length === 0 && (
             <p className="text-xs text-amber-600">
-              No se encontró ese SKU. Creá primero el producto padre con el SKU universal.
+              No se encontró ese SKU. Creá primero el producto con su SKU vendible.
             </p>
           )}
         </div>
@@ -249,7 +249,7 @@ export default function LinkSupplierCodeForm({ suppliers }: { suppliers: Supplie
           ) : (
             <>
               <Link2 className="w-4 h-4" />
-              Vincular al SKU padre
+              Vincular al SKU vendible
             </>
           )}
         </Button>

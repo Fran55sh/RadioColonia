@@ -199,7 +199,7 @@ export default function ProductVariantsEditor({
       </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Sin atributos globales: podés cargar solo SKU universal y proveedores.{" "}
+          Sin atributos globales: podés cargar solo SKU vendible y proveedores.{" "}
           <a href="/admin/atributos" className="text-primary underline">
             Agregar atributos
           </a>{" "}
@@ -219,7 +219,7 @@ export default function ProductVariantsEditor({
 
       <>
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-foreground">SKU universal (producto padre en tienda)</h3>
+            <h3 className="text-sm font-medium text-foreground">SKU vendible</h3>
             <Button type="button" variant="outline" size="sm" onClick={addVariant}>
               <Plus className="w-4 h-4" />
               Agregar SKU
@@ -241,7 +241,7 @@ export default function ProductVariantsEditor({
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-border bg-muted/30">
-                          <th className="text-left px-3 py-2 font-medium">SKU universal *</th>
+                          <th className="text-left px-3 py-2 font-medium">SKU vendible *</th>
                           {enabledAttributeSlugs.map((slug) => (
                             <th key={slug} className="text-left px-3 py-2 font-medium">
                               {attrBySlug[slug]?.name ?? slug}

@@ -34,7 +34,7 @@ export async function validateVariantAttributes(
   const allowedList = Array.from(allowed).sort().join(", ")
 
   if (Object.keys(attributes).length === 0) {
-    return { ok: false, errors: ["La variante debe tener al menos un atributo."] }
+    return { ok: true, normalized: {} }
   }
 
   const errors: string[] = []

@@ -7,6 +7,7 @@ import { useCart } from "@/contexts/CartContext"
 import { toast } from "sonner"
 import Image from "next/image"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 interface ProductCardProps {
   id:             string
@@ -18,19 +19,28 @@ interface ProductCardProps {
   rating:         number
   reviews:        number
   badge?:         string | null
+  sku?:           string | null
+  variantCount?:  number
+  variantLabel?:  string
   delay?:         number
 }
 
 export default function ProductCard({
   id, slug, image, name, price,
   originalPrice, rating, reviews,
-  badge, delay = 0,
+  badge, sku, variantCount = 0, variantLabel, delay = 0,
 }: ProductCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const { addItem } = useCart()
+  const router = useRouter()
 
   const handleAddToCart = () => {
-    addItem({ id, slug, name, price, originalPrice, image })
+    if (!sku || variantCount !== 1) {
+      router.push(`/productos/${slug}`)
+      return
+    }
+
+    addItem({ id, slug, name, price, originalPrice, image, sku, variantLabel })
     toast.success(`${name} agregado al carrito`)
   }
 
@@ -67,7 +77,7 @@ export default function ProductCard({
         <div className="absolute bottom-4 left-4 right-4 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
           <Button variant="hero" className="w-full" size="sm" onClick={handleAddToCart}>
             <ShoppingCart className="w-4 h-4" />
-            Agregar
+            {sku && variantCount === 1 ? "Agregar" : "Ver opciones"}
           </Button>
         </div>
       </div>

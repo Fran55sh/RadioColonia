@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/db"
-import { products, categories } from "@/db/schema"
-import { eq, and, desc } from "drizzle-orm"
+import { products, categories, productVariants } from "@/db/schema"
+import { eq, and, desc, inArray, asc } from "drizzle-orm"
 import ProductCard from "@/components/ProductCard"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -11,6 +11,12 @@ import type { Metadata } from "next"
 
 interface Props {
   params: Promise<{ slug: string; subSlug: string }>
+}
+
+function variantLabel(attributes: unknown): string | undefined {
+  if (!attributes || typeof attributes !== "object") return undefined
+  const values = Object.values(attributes as Record<string, string>).filter(Boolean)
+  return values.length ? values.join(" / ") : undefined
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -58,6 +64,26 @@ export default async function SubcategoryPage({ params }: Props) {
     .where(and(eq(products.categoryId, subcategory.id), eq(products.isActive, true)))
     .orderBy(desc(products.createdAt))
 
+  const variants = rows.length
+    ? await db
+        .select({
+          productId:  productVariants.productId,
+          sku:        productVariants.sku,
+          salePrice:  productVariants.salePrice,
+          attributes: productVariants.attributes,
+        })
+        .from(productVariants)
+        .where(inArray(productVariants.productId, rows.map((p) => p.id)))
+        .orderBy(asc(productVariants.createdAt))
+    : []
+
+  const variantsByProduct = new Map<string, typeof variants>()
+  for (const variant of variants) {
+    const list = variantsByProduct.get(variant.productId) ?? []
+    list.push(variant)
+    variantsByProduct.set(variant.productId, list)
+  }
+
   return (
     <div className="py-12">
       <div className="container mx-auto px-4">
@@ -86,21 +112,32 @@ export default async function SubcategoryPage({ params }: Props) {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {rows.map((product, index) => (
-              <ProductCard
-                key={product.id}
-                id={product.id}
-                slug={product.slug}
-                image={product.image}
-                name={product.name}
-                price={parseFloat(product.price)}
-                originalPrice={product.originalPrice ? parseFloat(product.originalPrice) : undefined}
-                rating={parseFloat(product.rating)}
-                reviews={product.reviews}
-                badge={product.badge}
-                delay={index * 0.05}
-              />
-            ))}
+            {rows.map((product, index) => {
+              const productVariantRows = variantsByProduct.get(product.id) ?? []
+              const firstVariant = productVariantRows[0]
+              return (
+                <ProductCard
+                  key={product.id}
+                  id={product.id}
+                  slug={product.slug}
+                  image={product.image}
+                  name={product.name}
+                  price={
+                    firstVariant?.salePrice
+                      ? parseFloat(firstVariant.salePrice)
+                      : parseFloat(product.price)
+                  }
+                  originalPrice={product.originalPrice ? parseFloat(product.originalPrice) : undefined}
+                  rating={parseFloat(product.rating)}
+                  reviews={product.reviews}
+                  badge={product.badge}
+                  sku={firstVariant?.sku}
+                  variantCount={productVariantRows.length}
+                  variantLabel={firstVariant ? variantLabel(firstVariant.attributes) : undefined}
+                  delay={index * 0.05}
+                />
+              )
+            })}
           </div>
         )}
       </div>

@@ -29,13 +29,13 @@ export default async function NuevoProductoPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Nuevo producto</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Producto de catálogo con SKU universal, o vinculá solo un código de proveedor.
+            Producto de catálogo con SKU vendible, o vinculá solo un código de proveedor.
           </p>
         </div>
         <Link href="/admin/productos/vincular">
           <Button variant="outline" size="sm">
             <Link2 className="w-4 h-4" />
-            Solo código proveedor → SKU padre
+            Solo código proveedor → SKU vendible
           </Button>
         </Link>
       </div>

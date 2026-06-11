@@ -1,10 +1,16 @@
 import { db } from "@/db"
-import { products, categories } from "@/db/schema"
-import { eq, desc } from "drizzle-orm"
+import { products, productVariants } from "@/db/schema"
+import { eq, desc, inArray, asc } from "drizzle-orm"
 import { ArrowRight } from "lucide-react"
 import { Button } from "./ui/button"
 import ProductCard from "./ProductCard"
 import Link from "next/link"
+
+function variantLabel(attributes: unknown): string | undefined {
+  if (!attributes || typeof attributes !== "object") return undefined
+  const values = Object.values(attributes as Record<string, string>).filter(Boolean)
+  return values.length ? values.join(" / ") : undefined
+}
 
 export default async function ProductsSection() {
   const rows = await db
@@ -23,6 +29,26 @@ export default async function ProductsSection() {
     .where(eq(products.isActive, true))
     .orderBy(desc(products.createdAt))
     .limit(6)
+
+  const variants = rows.length
+    ? await db
+        .select({
+          productId:  productVariants.productId,
+          sku:        productVariants.sku,
+          salePrice:  productVariants.salePrice,
+          attributes: productVariants.attributes,
+        })
+        .from(productVariants)
+        .where(inArray(productVariants.productId, rows.map((p) => p.id)))
+        .orderBy(asc(productVariants.createdAt))
+    : []
+
+  const variantsByProduct = new Map<string, typeof variants>()
+  for (const variant of variants) {
+    const list = variantsByProduct.get(variant.productId) ?? []
+    list.push(variant)
+    variantsByProduct.set(variant.productId, list)
+  }
 
   return (
     <section id="products" className="py-16 md:py-24 bg-muted">
@@ -45,21 +71,32 @@ export default async function ProductsSection() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {rows.map((product, index) => (
-            <ProductCard
-              key={product.id}
-              id={product.id}
-              slug={product.slug}
-              image={product.image}
-              name={product.name}
-              price={parseFloat(product.price)}
-              originalPrice={product.originalPrice ? parseFloat(product.originalPrice) : undefined}
-              rating={parseFloat(product.rating)}
-              reviews={product.reviews}
-              badge={product.badge}
-              delay={index * 0.1}
-            />
-          ))}
+          {rows.map((product, index) => {
+            const productVariants = variantsByProduct.get(product.id) ?? []
+            const firstVariant = productVariants[0]
+            return (
+              <ProductCard
+                key={product.id}
+                id={product.id}
+                slug={product.slug}
+                image={product.image}
+                name={product.name}
+                price={
+                  firstVariant?.salePrice
+                    ? parseFloat(firstVariant.salePrice)
+                    : parseFloat(product.price)
+                }
+                originalPrice={product.originalPrice ? parseFloat(product.originalPrice) : undefined}
+                rating={parseFloat(product.rating)}
+                reviews={product.reviews}
+                badge={product.badge}
+                sku={firstVariant?.sku}
+                variantCount={productVariants.length}
+                variantLabel={firstVariant ? variantLabel(firstVariant.attributes) : undefined}
+                delay={index * 0.1}
+              />
+            )
+          })}
         </div>
       </div>
     </section>

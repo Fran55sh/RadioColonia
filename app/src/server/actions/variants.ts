@@ -369,7 +369,7 @@ export async function linkSupplierCodeToParentSku(input: LinkSupplierCodeInput) 
   const data = parsed.data
   const parent = await getCatalogSkuExact(data.parentSku)
   if (!parent) {
-    return { error: `No existe un SKU universal "${data.parentSku}". Creá primero el producto padre.` }
+    return { error: `No existe un SKU vendible "${data.parentSku}". Creá primero el producto.` }
   }
 
   const [existingCode] = await db
