@@ -24,6 +24,21 @@ function defaultVariantForProduct(
   }
 }
 
+function resolveVariantsToSync(
+  slug: string,
+  productId: string,
+  product: ProductInput,
+  variants?: VariantPayload[]
+): VariantPayload[] {
+  return variants?.length
+    ? variants
+    : [defaultVariantForProduct(slug, productId, product)]
+}
+
+function catalogStockFromVariants(variants: VariantPayload[]): number {
+  return variants.reduce((sum, v) => sum + v.stock, 0)
+}
+
 export async function createProduct(
   formData: FormData,
   variants?: VariantPayload[]
@@ -48,6 +63,9 @@ export async function createProduct(
   }
 
   const slug = slugify(parsed.data.name)
+  const stockTotal = variants?.length
+    ? catalogStockFromVariants(variants)
+    : parsed.data.stock
 
   const [inserted] = await db
     .insert(products)
@@ -59,7 +77,7 @@ export async function createProduct(
       originalPrice: parsed.data.originalPrice ? parsed.data.originalPrice.toFixed(2) : null,
       image:         parsed.data.image,
       badge:         parsed.data.badge,
-      stock:         parsed.data.stock,
+      stock:         stockTotal,
       rating:        parsed.data.rating.toFixed(1),
       reviews:       parsed.data.reviews,
       categoryId:    parsed.data.categoryId,
@@ -67,11 +85,9 @@ export async function createProduct(
     })
     .returning({ id: products.id })
 
-  const variantsToSync = variants?.length
-    ? variants
-    : [defaultVariantForProduct(slug, inserted.id, parsed.data)]
+  const finalVariants = resolveVariantsToSync(slug, inserted.id, parsed.data, variants)
 
-  const syncResult = await syncProductVariants(inserted.id, variantsToSync)
+  const syncResult = await syncProductVariants(inserted.id, finalVariants)
   if (!syncResult.success) {
     return syncResult
   }
@@ -105,6 +121,16 @@ export async function updateProduct(
     return { error: formatZodError(parsed.error) }
   }
 
+  const slug = slugify(parsed.data.name)
+  const variantsToSync =
+    variants !== undefined
+      ? resolveVariantsToSync(slug, id, parsed.data, variants)
+      : undefined
+  const stockTotal =
+    variantsToSync !== undefined
+      ? catalogStockFromVariants(variantsToSync)
+      : parsed.data.stock
+
   await db
     .update(products)
     .set({
@@ -114,7 +140,7 @@ export async function updateProduct(
       originalPrice: parsed.data.originalPrice ? parsed.data.originalPrice.toFixed(2) : null,
       image:         parsed.data.image,
       badge:         parsed.data.badge,
-      stock:         parsed.data.stock,
+      stock:         stockTotal,
       rating:        parsed.data.rating.toFixed(1),
       reviews:       parsed.data.reviews,
       categoryId:    parsed.data.categoryId,
@@ -123,11 +149,7 @@ export async function updateProduct(
     })
     .where(eq(products.id, id))
 
-  if (variants !== undefined) {
-    const variantsToSync = variants.length
-      ? variants
-      : [defaultVariantForProduct(slugify(parsed.data.name), id, parsed.data)]
-
+  if (variantsToSync !== undefined) {
     const syncResult = await syncProductVariants(id, variantsToSync)
     if (!syncResult.success) {
       return syncResult

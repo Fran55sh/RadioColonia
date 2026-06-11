@@ -13,10 +13,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import LinkSupplierCodeForm from "./LinkSupplierCodeForm"
 import ProductVariantsEditor, {
   buildInitialVariants,
+  createEmptyVariantRow,
   getEnabledSlugsFromVariants,
   variantsToPayload,
   type VariantRow,
 } from "./ProductVariantsEditor"
+
+function initialVariantRows(
+  product: Product | undefined,
+  initialVariants: ProductVariant[],
+  offersByVariantId: Record<string, ProductSupplierOffer[]>,
+  suppliers: Supplier[]
+): VariantRow[] {
+  const built = buildInitialVariants(initialVariants, offersByVariantId)
+  if (built.length > 0) return built
+  if (!product) return [createEmptyVariantRow(suppliers)]
+  return [
+    createEmptyVariantRow(suppliers, {
+      stock: product.stock,
+    }),
+  ]
+}
 
 export interface CategoryOption {
   id:       string
@@ -70,7 +87,7 @@ export default function ProductForm({
   const effectiveCategoryId = subcategoryId || parentCategoryId || ""
 
   const [variants, setVariants] = useState<VariantRow[]>(() =>
-    buildInitialVariants(initialVariants, initialOffersByVariantId)
+    initialVariantRows(product, initialVariants, initialOffersByVariantId, suppliers)
   )
   const [enabledAttributeSlugs, setEnabledAttributeSlugs] = useState<string[]>(() =>
     getEnabledSlugsFromVariants(initialVariants)
@@ -110,6 +127,13 @@ export default function ProductForm({
     fd.set("categoryId", effectiveCategoryId)
 
     const variantPayload = variantsToPayload(variants)
+    if (variantPayload.length === 0) {
+      setError("Cargá al menos un SKU vendible con stock.")
+      return
+    }
+
+    const totalStock = variantPayload.reduce((sum, v) => sum + v.stock, 0)
+    fd.set("stock", String(totalStock))
 
     start(async () => {
       const result = product
@@ -135,7 +159,7 @@ export default function ProductForm({
 
   if (!product) {
     return (
-      <Tabs defaultValue="catalog" className="max-w-3xl">
+      <Tabs defaultValue="catalog" className="max-w-3xl flex flex-col">
         <TabsList className="w-full mb-6">
           <TabsTrigger value="catalog" className="flex-1">
             Producto nuevo
@@ -213,8 +237,11 @@ export default function ProductForm({
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Precio *</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Precio base *</label>
             <Input name="price" type="number" step="0.01" min="0" defaultValue={product?.price} required />
+            <p className="text-xs text-muted-foreground mt-1">
+              Precio de lista del producto. Si una variante no tiene precio propio, usa este valor.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Precio original</label>
@@ -222,18 +249,9 @@ export default function ProductForm({
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Stock *</label>
-            <Input name="stock" type="number" min="0" defaultValue={product?.stock ?? 0} required />
-            <p className="text-xs text-muted-foreground mt-1">
-              Se usa para crear la variante default si no cargás variantes visibles.
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Badge</label>
-            <Input name="badge" defaultValue={product?.badge ?? ""} placeholder="Nuevo, Sale..." />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1.5">Badge</label>
+          <Input name="badge" defaultValue={product?.badge ?? ""} placeholder="Nuevo, Sale..." />
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
@@ -299,8 +317,9 @@ export default function ProductForm({
       <div className="bg-card rounded-2xl border border-border p-8 space-y-4">
         <h2 className="text-lg font-semibold text-foreground">SKU vendible y proveedores</h2>
         <p className="text-sm text-muted-foreground">
-          El <strong>SKU vendible</strong> (ej. utp6-020) identifica la unidad real que se vende y descuenta stock.
-          Debajo cargá cada <strong>código interno del proveedor</strong> (ej. lta020, 121-1200) con su costo y stock.
+          Cada fila es un <strong>SKU vendible</strong> (ej. utp6-020): la unidad que se escanea en POS y descuenta stock en la tienda.
+          El stock se carga acá, no en la información general. Debajo podés vincular{" "}
+          <strong>códigos internos del proveedor</strong> (ej. lta020) con costo y stock de compra.
           Si solo tenés un código de proveedor para un SKU que ya existe, usá la pestaña{" "}
           <strong>Código proveedor → SKU vendible</strong>.
         </p>
@@ -311,6 +330,7 @@ export default function ProductForm({
           onEnabledAttributesChange={setEnabledAttributeSlugs}
           variants={variants}
           onVariantsChange={setVariants}
+          minVariants={1}
         />
       </div>
 

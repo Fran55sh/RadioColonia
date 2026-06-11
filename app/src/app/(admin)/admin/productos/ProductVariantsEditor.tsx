@@ -30,6 +30,8 @@ interface ProductVariantsEditorProps {
   onEnabledAttributesChange: (slugs: string[]) => void
   variants: VariantRow[]
   onVariantsChange: (variants: VariantRow[]) => void
+  /** Impide borrar la última fila (producto simple = 1 SKU vendible). */
+  minVariants?: number
 }
 
 function offerToRow(o: ProductSupplierOffer): SupplierOfferRow {
@@ -78,6 +80,19 @@ function emptyOffer(suppliers: Supplier[]): SupplierOfferRow {
   }
 }
 
+export function createEmptyVariantRow(
+  suppliers: Supplier[],
+  overrides?: Partial<Pick<VariantRow, "stock" | "salePrice">>
+): VariantRow {
+  return {
+    sku: "",
+    stock: overrides?.stock ?? 0,
+    salePrice: overrides?.salePrice ?? "",
+    attributes: {},
+    supplierOffers: suppliers.length ? [emptyOffer(suppliers)] : [],
+  }
+}
+
 export default function ProductVariantsEditor({
   globalAttributes,
   suppliers,
@@ -85,6 +100,7 @@ export default function ProductVariantsEditor({
   onEnabledAttributesChange,
   variants,
   onVariantsChange,
+  minVariants = 1,
 }: ProductVariantsEditorProps) {
   function toggleAttribute(slug: string) {
     if (enabledAttributeSlugs.includes(slug)) {
@@ -133,6 +149,7 @@ export default function ProductVariantsEditor({
   }
 
   function removeVariant(index: number) {
+    if (variants.length <= minVariants) return
     onVariantsChange(variants.filter((_, i) => i !== index))
   }
 
@@ -228,7 +245,7 @@ export default function ProductVariantsEditor({
 
           {variants.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Sin SKU: el producto usa precio y stock del formulario principal arriba.
+              Agregá al menos un SKU vendible. Es la unidad que se escanea en POS y descuenta stock en la tienda.
             </p>
           ) : (
             <div className="space-y-6">
@@ -248,7 +265,7 @@ export default function ProductVariantsEditor({
                             </th>
                           ))}
                           <th className="text-left px-3 py-2 font-medium">Stock venta</th>
-                          <th className="text-left px-3 py-2 font-medium">Precio venta</th>
+                          <th className="text-left px-3 py-2 font-medium">Precio venta (opc.)</th>
                           <th className="w-10" />
                         </tr>
                       </thead>
@@ -294,19 +311,22 @@ export default function ProductVariantsEditor({
                               onChange={(e) =>
                                 updateVariant(index, { salePrice: e.target.value })
                               }
+                              placeholder="Usa precio base"
                               className="h-8 w-24"
                             />
                           </td>
                           <td className="px-3 py-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              onClick={() => removeVariant(index)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {variants.length > minVariants && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={() => removeVariant(index)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       </tbody>
