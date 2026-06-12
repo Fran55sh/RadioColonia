@@ -40,6 +40,7 @@ const REQUIRED_TABLES = [
   "pos_ordenes_compra",
   "pos_ordenes_compra_lineas",
   "pos_facturas_compra",
+  "pos_comprobantes_fiscales",
 ]
 
 const REQUIRED_COLUMNS: Array<{ table: string; column: string }> = [
