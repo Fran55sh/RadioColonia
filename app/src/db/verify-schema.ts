@@ -24,6 +24,8 @@ const REQUIRED_TABLES = [
   "global_attributes",
   "products",
   "product_variants",
+  "product_variant_price_tiers",
+  "product_price_tiers",
   "product_supplier_offers",
   "suppliers",
   "carts",

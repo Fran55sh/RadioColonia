@@ -3,7 +3,15 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Trash2 } from "lucide-react"
-import type { GlobalAttribute, ProductSupplierOffer, ProductVariant, Supplier } from "@/db/schema"
+import type {
+  GlobalAttribute,
+  ProductSupplierOffer,
+  ProductVariant,
+  ProductVariantPriceTier,
+  ProductPriceTier,
+  QtyDiscountScope,
+  Supplier,
+} from "@/db/schema"
 
 export interface SupplierOfferRow {
   id?: string
@@ -14,6 +22,12 @@ export interface SupplierOfferRow {
   isPreferred: boolean
 }
 
+export interface PriceTierRow {
+  id?: string
+  minQty: number
+  unitPrice: string
+}
+
 export interface VariantRow {
   id?: string
   sku: string
@@ -21,6 +35,7 @@ export interface VariantRow {
   salePrice: string
   attributes: Record<string, string>
   supplierOffers: SupplierOfferRow[]
+  priceTiers: PriceTierRow[]
 }
 
 interface ProductVariantsEditorProps {
@@ -28,6 +43,12 @@ interface ProductVariantsEditorProps {
   suppliers: Supplier[]
   enabledAttributeSlugs: string[]
   onEnabledAttributesChange: (slugs: string[]) => void
+  qtyDiscountEnabled: boolean
+  onQtyDiscountEnabledChange: (enabled: boolean) => void
+  qtyDiscountScope: QtyDiscountScope
+  onQtyDiscountScopeChange: (scope: QtyDiscountScope) => void
+  sharedPriceTiers: PriceTierRow[]
+  onSharedPriceTiersChange: (tiers: PriceTierRow[]) => void
   variants: VariantRow[]
   onVariantsChange: (variants: VariantRow[]) => void
   /** Impide borrar la última fila (producto simple = 1 SKU vendible). */
@@ -45,9 +66,18 @@ function offerToRow(o: ProductSupplierOffer): SupplierOfferRow {
   }
 }
 
+function tierToRow(t: ProductVariantPriceTier | ProductPriceTier): PriceTierRow {
+  return {
+    id:        t.id,
+    minQty:    t.minQty,
+    unitPrice: t.unitPrice ?? "",
+  }
+}
+
 export function buildInitialVariants(
   initial?: ProductVariant[],
-  offersByVariantId?: Record<string, ProductSupplierOffer[]>
+  offersByVariantId?: Record<string, ProductSupplierOffer[]>,
+  tiersByVariantId?: Record<string, ProductVariantPriceTier[]>
 ): VariantRow[] {
   if (!initial?.length) return []
   return initial.map((v) => ({
@@ -57,6 +87,7 @@ export function buildInitialVariants(
     salePrice:       v.salePrice ?? "",
     attributes:      (v.attributes ?? {}) as Record<string, string>,
     supplierOffers:  (offersByVariantId?.[v.id] ?? []).map(offerToRow),
+    priceTiers:      (tiersByVariantId?.[v.id] ?? []).map(tierToRow),
   }))
 }
 
@@ -90,6 +121,7 @@ export function createEmptyVariantRow(
     salePrice: overrides?.salePrice ?? "",
     attributes: {},
     supplierOffers: suppliers.length ? [emptyOffer(suppliers)] : [],
+    priceTiers: [],
   }
 }
 
@@ -98,6 +130,12 @@ export default function ProductVariantsEditor({
   suppliers,
   enabledAttributeSlugs,
   onEnabledAttributesChange,
+  qtyDiscountEnabled,
+  onQtyDiscountEnabledChange,
+  qtyDiscountScope,
+  onQtyDiscountScopeChange,
+  sharedPriceTiers,
+  onSharedPriceTiersChange,
   variants,
   onVariantsChange,
   minVariants = 1,
@@ -116,13 +154,42 @@ export default function ProductVariantsEditor({
     }
   }
 
+  function toggleQtyDiscount(enabled: boolean) {
+    onQtyDiscountEnabledChange(enabled)
+    if (!enabled) {
+      onSharedPriceTiersChange([])
+      onVariantsChange(variants.map((v) => ({ ...v, priceTiers: [] })))
+    }
+  }
+
+  function changeQtyDiscountScope(scope: QtyDiscountScope) {
+    onQtyDiscountScopeChange(scope)
+    if (scope === "shared") {
+      const source =
+        sharedPriceTiers.length > 0
+          ? sharedPriceTiers
+          : (variants.find((v) => v.priceTiers.length > 0)?.priceTiers ?? [])
+      if (source.length > 0) {
+        onSharedPriceTiersChange(source.map((t) => ({ ...t })))
+      }
+      onVariantsChange(variants.map((v) => ({ ...v, priceTiers: [] })))
+    } else {
+      if (sharedPriceTiers.length > 0) {
+        onVariantsChange(
+          variants.map((v) => ({
+            ...v,
+            priceTiers: sharedPriceTiers.map((t) => ({ ...t })),
+          }))
+        )
+      }
+      onSharedPriceTiersChange([])
+    }
+  }
+
   function addVariant() {
     const emptyAttrs: Record<string, string> = {}
     for (const slug of enabledAttributeSlugs) {
       emptyAttrs[slug] = ""
-    }
-    if (variants.length === 0 && enabledAttributeSlugs.length === 0 && globalAttributes.length > 0) {
-      onEnabledAttributesChange([])
     }
     onVariantsChange([
       ...variants,
@@ -132,6 +199,7 @@ export default function ProductVariantsEditor({
         salePrice: "",
         attributes: emptyAttrs,
         supplierOffers: suppliers.length ? [emptyOffer(suppliers)] : [],
+        priceTiers: [],
       },
     ])
   }
@@ -183,6 +251,50 @@ export default function ProductVariantsEditor({
     })
   }
 
+  function addTier(variantIndex: number) {
+    const variant = variants[variantIndex]
+    updateVariant(variantIndex, {
+      priceTiers: [...variant.priceTiers, { minQty: 10, unitPrice: "" }],
+    })
+  }
+
+  function updateTier(
+    variantIndex: number,
+    tierIndex: number,
+    patch: Partial<PriceTierRow>
+  ) {
+    const variant = variants[variantIndex]
+    updateVariant(variantIndex, {
+      priceTiers: variant.priceTiers.map((t, i) =>
+        i === tierIndex ? { ...t, ...patch } : t
+      ),
+    })
+  }
+
+  function removeTier(variantIndex: number, tierIndex: number) {
+    const variant = variants[variantIndex]
+    updateVariant(variantIndex, {
+      priceTiers: variant.priceTiers.filter((_, i) => i !== tierIndex),
+    })
+  }
+
+  function addSharedTier() {
+    onSharedPriceTiersChange([
+      ...sharedPriceTiers,
+      { minQty: 10, unitPrice: "" },
+    ])
+  }
+
+  function updateSharedTier(tierIndex: number, patch: Partial<PriceTierRow>) {
+    onSharedPriceTiersChange(
+      sharedPriceTiers.map((t, i) => (i === tierIndex ? { ...t, ...patch } : t))
+    )
+  }
+
+  function removeSharedTier(tierIndex: number) {
+    onSharedPriceTiersChange(sharedPriceTiers.filter((_, i) => i !== tierIndex))
+  }
+
   const attrBySlug = Object.fromEntries(globalAttributes.map((a) => [a.slug, a]))
   const supplierById = Object.fromEntries(suppliers.map((s) => [s.id, s]))
   const hasAttributes = globalAttributes.length > 0
@@ -223,6 +335,141 @@ export default function ProductVariantsEditor({
           si necesitás color, talle, etc.
         </p>
       )}
+
+      <div className="rounded-xl border border-border p-4 space-y-3">
+        <h3 className="text-sm font-medium text-foreground">Descuento por cantidad</h3>
+        <p className="text-xs text-muted-foreground">
+          Precio unitario fijo según la cantidad comprada. Podés definir tramos distintos por SKU o
+          el mismo descuento para todos.
+        </p>
+        <label
+          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors ${
+            qtyDiscountEnabled
+              ? "border-primary bg-primary/10 text-foreground"
+              : "border-border text-muted-foreground hover:border-primary/50"
+          }`}
+        >
+          <input
+            type="checkbox"
+            className="accent-primary"
+            checked={qtyDiscountEnabled}
+            onChange={(e) => toggleQtyDiscount(e.target.checked)}
+          />
+          Habilitar descuento por cantidad
+        </label>
+
+        {qtyDiscountEnabled && (
+          <div className="space-y-3 pt-1">
+            <div className="flex flex-wrap gap-2">
+              <label
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors ${
+                  qtyDiscountScope === "shared"
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border text-muted-foreground hover:border-primary/50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="qtyDiscountScope"
+                  className="accent-primary"
+                  checked={qtyDiscountScope === "shared"}
+                  onChange={() => changeQtyDiscountScope("shared")}
+                />
+                Mismo descuento para todos los SKU
+              </label>
+              <label
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors ${
+                  qtyDiscountScope === "per_variant"
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border text-muted-foreground hover:border-primary/50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="qtyDiscountScope"
+                  className="accent-primary"
+                  checked={qtyDiscountScope === "per_variant"}
+                  onChange={() => changeQtyDiscountScope("per_variant")}
+                />
+                Descuento distinto por cada SKU
+              </label>
+            </div>
+
+            {qtyDiscountScope === "shared" && (
+              <div className="rounded-lg border border-border bg-muted/10 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Tramos compartidos
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={addSharedTier}
+                  >
+                    <Plus className="w-3 h-3" />
+                    Agregar tramo
+                  </Button>
+                </div>
+                {sharedPriceTiers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Sin tramos. Estos precios aplican a todos los SKU del producto.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {sharedPriceTiers.map((tier, ti) => (
+                      <div
+                        key={tier.id ?? ti}
+                        className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end"
+                      >
+                        <div className="sm:col-span-4">
+                          <label className="text-xs text-muted-foreground">Desde (unidades)</label>
+                          <Input
+                            type="number"
+                            min={2}
+                            value={tier.minQty}
+                            onChange={(e) =>
+                              updateSharedTier(ti, {
+                                minQty: parseInt(e.target.value, 10) || 2,
+                              })
+                            }
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="sm:col-span-4">
+                          <label className="text-xs text-muted-foreground">Precio unitario</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={tier.unitPrice}
+                            onChange={(e) =>
+                              updateSharedTier(ti, { unitPrice: e.target.value })
+                            }
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="sm:col-span-2 pb-0.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => removeSharedTier(ti)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {suppliers.length === 0 && (
         <p className="text-sm text-amber-600 dark:text-amber-400">
@@ -332,6 +579,79 @@ export default function ProductVariantsEditor({
                       </tbody>
                     </table>
                   </div>
+
+                  {qtyDiscountEnabled && qtyDiscountScope === "per_variant" && (
+                    <div className="border-t border-border bg-muted/10 px-4 py-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          Descuentos por cantidad
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => addTier(index)}
+                        >
+                          <Plus className="w-3 h-3" />
+                          Agregar tramo
+                        </Button>
+                      </div>
+                      {row.priceTiers.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          Sin tramos. Agregá relaciones cantidad → precio unitario.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {row.priceTiers.map((tier, ti) => (
+                            <div
+                              key={tier.id ?? ti}
+                              className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end"
+                            >
+                              <div className="sm:col-span-4">
+                                <label className="text-xs text-muted-foreground">Desde (unidades)</label>
+                                <Input
+                                  type="number"
+                                  min={2}
+                                  value={tier.minQty}
+                                  onChange={(e) =>
+                                    updateTier(index, ti, {
+                                      minQty: parseInt(e.target.value, 10) || 2,
+                                    })
+                                  }
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                              <div className="sm:col-span-4">
+                                <label className="text-xs text-muted-foreground">Precio unitario</label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min={0}
+                                  value={tier.unitPrice}
+                                  onChange={(e) =>
+                                    updateTier(index, ti, { unitPrice: e.target.value })
+                                  }
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                              <div className="sm:col-span-2 pb-0.5">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive"
+                                  onClick={() => removeTier(index, ti)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="border-t border-border bg-muted/20 px-4 py-3 space-y-2">
                     <div className="flex items-center justify-between">
@@ -461,6 +781,16 @@ export default function ProductVariantsEditor({
   )
 }
 
+export function sharedTiersToPayload(rows: PriceTierRow[]) {
+  return rows
+    .filter((t) => t.minQty >= 2 && t.unitPrice && parseFloat(t.unitPrice) > 0)
+    .map((t) => ({
+      id:        t.id,
+      minQty:    t.minQty,
+      unitPrice: parseFloat(t.unitPrice),
+    }))
+}
+
 export function variantsToPayload(rows: VariantRow[]) {
   return rows
     .filter((r) => r.sku.trim())
@@ -482,6 +812,13 @@ export function variantsToPayload(rows: VariantRow[]) {
           costPrice:    o.costPrice ? parseFloat(o.costPrice) : null,
           stock:        o.stock,
           isPreferred:  o.isPreferred,
+        })),
+      priceTiers: r.priceTiers
+        .filter((t) => t.minQty >= 2 && t.unitPrice && parseFloat(t.unitPrice) > 0)
+        .map((t) => ({
+          id:        t.id,
+          minQty:    t.minQty,
+          unitPrice: parseFloat(t.unitPrice),
         })),
     }))
 }

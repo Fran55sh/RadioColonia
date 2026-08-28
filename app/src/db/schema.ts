@@ -146,6 +146,7 @@ export const products = pgTable(
     reviews:       integer("reviews").notNull().default(0),
     categoryId:    uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
     isActive:      boolean("is_active").notNull().default(true),
+    qtyDiscountScope: text("qty_discount_scope").notNull().default("per_variant"),
     createdAt:     timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt:     timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
   },
@@ -154,6 +155,10 @@ export const products = pgTable(
     categoryIdx:   index("products_category_idx").on(table.categoryId),
     isActiveIdx:   index("products_is_active_idx").on(table.isActive),
     stockNonNegative: check("products_stock_non_negative", sql`${table.stock} >= 0`),
+    qtyDiscountScopeCk: check(
+      "products_qty_discount_scope_ck",
+      sql`${table.qtyDiscountScope} IN ('per_variant', 'shared')`,
+    ),
   })
 )
 
@@ -184,6 +189,44 @@ export const productVariants = pgTable(
       "product_variants_stock_non_negative",
       sql`${table.stock} >= 0`,
     ),
+  })
+)
+
+// ── Quantity price tiers (per SKU) ─────────────────────────────────────────────
+
+export const productVariantPriceTiers = pgTable(
+  "product_variant_price_tiers",
+  {
+    id:        uuid("id").primaryKey().defaultRandom(),
+    variantId: uuid("variant_id").notNull().references(() => productVariants.id, { onDelete: "cascade" }),
+    minQty:    integer("min_qty").notNull(),
+    unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    variantMinQtyIdx: uniqueIndex("pvpt_variant_min_qty_idx").on(table.variantId, table.minQty),
+    variantIdx:       index("pvpt_variant_id_idx").on(table.variantId),
+    minQtyCk:         check("pvpt_min_qty_ck", sql`${table.minQty} >= 2`),
+    unitPriceCk:      check("pvpt_unit_price_ck", sql`${table.unitPrice} > 0`),
+  })
+)
+
+// ── Quantity price tiers (shared across all SKUs of a product) ────────────────
+
+export const productPriceTiers = pgTable(
+  "product_price_tiers",
+  {
+    id:        uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    minQty:    integer("min_qty").notNull(),
+    unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    productMinQtyIdx: uniqueIndex("ppt_product_min_qty_idx").on(table.productId, table.minQty),
+    productIdx:       index("ppt_product_id_idx").on(table.productId),
+    minQtyCk:         check("ppt_min_qty_ck", sql`${table.minQty} >= 2`),
+    unitPriceCk:      check("ppt_unit_price_ck", sql`${table.unitPrice} > 0`),
   })
 )
 
@@ -359,6 +402,11 @@ export type Product         = typeof products.$inferSelect
 export type NewProduct      = typeof products.$inferInsert
 export type ProductVariant  = typeof productVariants.$inferSelect
 export type NewProductVariant = typeof productVariants.$inferInsert
+export type ProductVariantPriceTier = typeof productVariantPriceTiers.$inferSelect
+export type NewProductVariantPriceTier = typeof productVariantPriceTiers.$inferInsert
+export type ProductPriceTier = typeof productPriceTiers.$inferSelect
+export type NewProductPriceTier = typeof productPriceTiers.$inferInsert
+export type QtyDiscountScope = "per_variant" | "shared"
 export type Supplier = typeof suppliers.$inferSelect
 export type NewSupplier = typeof suppliers.$inferInsert
 export type ProductSupplierOffer = typeof productSupplierOffers.$inferSelect

@@ -1,5 +1,6 @@
-handle,name,category_slug,description,cost_price,sale_price,sku,stock,supplier,supplier_code,supplier_stock,attribute_name,attribute_value,image_filename
-utp-cat6-2m,Cable UTP Cat6 2m,redes,Cable de red UTP categoría 6 - 2 metros,1200,2500,utp6-020,100,proveedor-lta,lta020,100,,,utp-cat6.jpg
-utp-cat6-2m,Cable UTP Cat6 2m,redes,Cable de red UTP categoría 6 - 2 metros,1150,2500,utp6-020,80,proveedor-121,121-1200,80,,,utp-cat6.jpg
-auriculares-bt,Auriculares BT,audio,Descripción del producto,1500,2500,AUR-BT-001,50,proveedor-a,AUR-BT-NEG,50,Color,Negro,auriculares-bt.jpg
-auriculares-bt,Auriculares BT,audio,Descripción del producto,1480,2500,AUR-BT-002,30,proveedor-a,AUR-BT-BLA,30,Color,Blanco,auriculares-bt.jpg
+handle,name,category_slug,description,cost_price,sale_price,sku,stock,supplier,supplier_code,supplier_stock,attribute_name,attribute_value,attribute_2_name,attribute_2_value,attribute_3_name,attribute_3_value,qty_discounts,image_filename
+utp-cat6-2m,Cable UTP Cat6 2m,redes,Cable de red UTP categoría 6 - 2 metros,1200,2500,utp6-020,100,proveedor-lta,lta020,100,,,,,,"10:2200|50:2000",utp-cat6.jpg
+utp-cat6-2m,Cable UTP Cat6 2m,redes,Cable de red UTP categoría 6 - 2 metros,1150,2500,utp6-020,80,proveedor-121,121-1200,80,,,,,,"10:2200|50:2000",utp-cat6.jpg
+auriculares-bt,Auriculares BT,audio,Descripción del producto,1500,2500,AUR-BT-001,50,proveedor-a,AUR-BT-NEG,50,Color,Negro,,,,,auriculares-bt.jpg
+auriculares-bt,Auriculares BT,audio,Descripción del producto,1480,2500,AUR-BT-002,30,proveedor-a,AUR-BT-BLA,30,Color,Blanco,,,,,auriculares-bt.jpg
+cargador-usb,Cargador USB,energia,Cargador con atributo capacidad y voltaje,800,1800,CHG-65W-20V,40,proveedor-a,CHG-65,40,Capacidad,65W,Voltaje,20V,,,"5:1600|20:1400",cargador-usb.jpg

@@ -59,14 +59,21 @@ export default function CarritoPage() {
                   {item.variantLabel && (
                     <p className="text-xs text-muted-foreground mb-1">{item.variantLabel}</p>
                   )}
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-2 mb-1">
                     <span className="font-bold text-foreground text-lg">${item.price.toFixed(2)}</span>
-                    {item.originalPrice && (
+                    {Math.abs(item.price - item.basePrice) > 0.009 ? (
+                      <span className="text-sm text-muted-foreground line-through">
+                        ${item.basePrice.toFixed(2)}
+                      </span>
+                    ) : item.originalPrice ? (
                       <span className="text-sm text-muted-foreground line-through">
                         ${item.originalPrice.toFixed(2)}
                       </span>
-                    )}
+                    ) : null}
                   </div>
+                  {Math.abs(item.price - item.basePrice) > 0.009 && (
+                    <p className="text-xs text-primary mb-2">Descuento por cantidad aplicado</p>
+                  )}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Button

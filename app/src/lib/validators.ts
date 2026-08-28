@@ -118,6 +118,12 @@ export const linkSupplierCodeSchema = z.object({
   isPreferred:    z.boolean().default(false),
 })
 
+export const priceTierSchema = z.object({
+  id:        z.string().uuid().optional(),
+  minQty:    z.coerce.number({ message: "Cantidad inválida" }).int().min(2, "La cantidad mínima del tramo debe ser al menos 2"),
+  unitPrice: z.coerce.number({ message: "Precio inválido" }).positive("El precio unitario debe ser mayor a 0"),
+})
+
 export const productVariantSchema = z.object({
   id:         z.string().uuid().optional(),
   sku:        z.string().min(1, "SKU requerido"),
@@ -126,6 +132,17 @@ export const productVariantSchema = z.object({
   salePrice:  optionalPositivePrice,
   attributes: z.record(z.string(), z.string()),
   supplierOffers: z.array(supplierOfferSchema).optional().default([]),
+  priceTiers: z.array(priceTierSchema).optional().default([]),
+}).superRefine((data, ctx) => {
+  const tiers = data.priceTiers ?? []
+  const minQtys = tiers.map((t) => t.minQty)
+  if (new Set(minQtys).size !== minQtys.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "No puede haber dos tramos con la misma cantidad mínima",
+      path: ["priceTiers"],
+    })
+  }
 })
 
 export type LoginInput           = z.infer<typeof loginSchema>
@@ -137,4 +154,5 @@ export type GlobalAttributeInput = z.infer<typeof globalAttributeSchema>
 export type SupplierInput        = z.infer<typeof supplierSchema>
 export type SupplierOfferInput   = z.infer<typeof supplierOfferSchema>
 export type LinkSupplierCodeInput = z.infer<typeof linkSupplierCodeSchema>
+export type PriceTierInput       = z.infer<typeof priceTierSchema>
 export type ProductVariantInput  = z.infer<typeof productVariantSchema>

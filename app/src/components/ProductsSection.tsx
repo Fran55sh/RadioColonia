@@ -1,10 +1,11 @@
 import { db } from "@/db"
-import { products, productVariants } from "@/db/schema"
-import { eq, desc, inArray, asc } from "drizzle-orm"
+import { products } from "@/db/schema"
+import { eq, desc } from "drizzle-orm"
 import { ArrowRight } from "lucide-react"
 import { Button } from "./ui/button"
 import ProductCard from "./ProductCard"
 import Link from "next/link"
+import { cardPriceProps, loadVariantsAndTiers } from "@/lib/listingVariants"
 
 function variantLabel(attributes: unknown): string | undefined {
   if (!attributes || typeof attributes !== "object") return undefined
@@ -30,25 +31,9 @@ export default async function ProductsSection() {
     .orderBy(desc(products.createdAt))
     .limit(6)
 
-  const variants = rows.length
-    ? await db
-        .select({
-          productId:  productVariants.productId,
-          sku:        productVariants.sku,
-          salePrice:  productVariants.salePrice,
-          attributes: productVariants.attributes,
-        })
-        .from(productVariants)
-        .where(inArray(productVariants.productId, rows.map((p) => p.id)))
-        .orderBy(asc(productVariants.createdAt))
-    : []
-
-  const variantsByProduct = new Map<string, typeof variants>()
-  for (const variant of variants) {
-    const list = variantsByProduct.get(variant.productId) ?? []
-    list.push(variant)
-    variantsByProduct.set(variant.productId, list)
-  }
+  const { variantsByProduct, tiersByVariantId } = await loadVariantsAndTiers(
+    rows.map((p) => p.id)
+  )
 
   return (
     <section id="products" className="py-16 md:py-24 bg-muted">
@@ -74,6 +59,11 @@ export default async function ProductsSection() {
           {rows.map((product, index) => {
             const productVariants = variantsByProduct.get(product.id) ?? []
             const firstVariant = productVariants[0]
+            const display = cardPriceProps(
+              product.price,
+              productVariants,
+              tiersByVariantId
+            )
             return (
               <ProductCard
                 key={product.id}
@@ -81,11 +71,9 @@ export default async function ProductsSection() {
                 slug={product.slug}
                 image={product.image}
                 name={product.name}
-                price={
-                  firstVariant?.salePrice
-                    ? parseFloat(firstVariant.salePrice)
-                    : parseFloat(product.price)
-                }
+                price={display.price}
+                priceMin={display.priceMin}
+                priceMax={display.priceMax}
                 originalPrice={product.originalPrice ? parseFloat(product.originalPrice) : undefined}
                 rating={parseFloat(product.rating)}
                 reviews={product.reviews}
@@ -93,6 +81,14 @@ export default async function ProductsSection() {
                 sku={firstVariant?.sku}
                 variantCount={productVariants.length}
                 variantLabel={firstVariant ? variantLabel(firstVariant.attributes) : undefined}
+                basePrice={
+                  firstVariant?.salePrice
+                    ? parseFloat(firstVariant.salePrice)
+                    : parseFloat(product.price)
+                }
+                priceTiers={
+                  firstVariant ? (tiersByVariantId[firstVariant.id] ?? []) : []
+                }
                 delay={index * 0.1}
               />
             )

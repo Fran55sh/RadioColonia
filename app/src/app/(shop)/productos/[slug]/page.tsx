@@ -1,13 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { Star, ShoppingCart, ArrowLeft, Truck, Shield, RotateCcw } from "lucide-react"
+import { Star, ShoppingCart, Truck, Shield, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/contexts/CartContext"
 import { toast } from "sonner"
+import {
+  normalizeTiers,
+  resolveUnitPrice,
+  type PriceTier,
+} from "@/lib/quantityPricing"
 
 interface ProductVariant {
   id:         string
@@ -15,6 +20,7 @@ interface ProductVariant {
   stock:      number
   salePrice:  string | null
   attributes: Record<string, string>
+  priceTiers: PriceTier[]
 }
 
 interface ProductDetail {
@@ -32,12 +38,21 @@ interface ProductDetail {
   categoryName:  string | null
 }
 
+function matchesAttrs(
+  variant: ProductVariant,
+  selectedAttrs: Record<string, string>
+): boolean {
+  return Object.entries(selectedAttrs).every(
+    ([k, v]) => variant.attributes[k] === v
+  )
+}
+
 export default function ProductDetailPage() {
   const params = useParams<{ slug: string }>()
   const [product,  setProduct]  = useState<ProductDetail | null>(null)
   const [variants, setVariants] = useState<ProductVariant[]>([])
   const [attributeLabels, setAttributeLabels] = useState<Record<string, string>>({})
-  const [selected, setSelected] = useState<ProductVariant | null>(null)
+  const [selectedAttrs, setSelectedAttrs] = useState<Record<string, string>>({})
   const [loading,  setLoading]  = useState(true)
   const [qty,      setQty]      = useState(1)
   const { addItem } = useCart()
@@ -47,14 +62,26 @@ export default function ProductDetailPage() {
       .then((r) => r.json())
       .then((data) => {
         setProduct(data.product)
-        const v: ProductVariant[] = data.variants ?? []
+        const v: ProductVariant[] = (data.variants ?? []).map((row: ProductVariant) => ({
+          ...row,
+          attributes: (row.attributes ?? {}) as Record<string, string>,
+          priceTiers: normalizeTiers(row.priceTiers ?? []),
+        }))
         setVariants(v)
         setAttributeLabels(data.attributeLabels ?? {})
-        if (v.length > 0) setSelected(v[0])
+        if (v.length > 0) {
+          setSelectedAttrs({ ...v[0].attributes })
+        }
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [params.slug])
+
+  const selected = useMemo(() => {
+    if (variants.length === 0) return null
+    const exact = variants.find((v) => matchesAttrs(v, selectedAttrs))
+    return exact ?? variants[0]
+  }, [variants, selectedAttrs])
 
   if (loading) {
     return (
@@ -75,21 +102,24 @@ export default function ProductDetailPage() {
     )
   }
 
-  // Price: use selected variant's salePrice if available, else product price
-  const price         = selected?.salePrice
+  const basePrice = selected?.salePrice
     ? parseFloat(selected.salePrice)
     : parseFloat(product.price)
+  const tiers = selected?.priceTiers ?? []
+  const price = resolveUnitPrice(basePrice, tiers, qty)
+  const tierActive = Math.abs(price - basePrice) > 0.009
   const originalPrice = product.originalPrice ? parseFloat(product.originalPrice) : null
-  const discount      = originalPrice ? Math.round((1 - price / originalPrice) * 100) : null
-  const rating        = parseFloat(product.rating)
-  const activeStock   = selected ? selected.stock : 0
+  const discount = originalPrice && !tierActive
+    ? Math.round((1 - price / originalPrice) * 100)
+    : null
+  const rating = parseFloat(product.rating)
+  const activeStock = selected ? selected.stock : 0
+  const lineTotal = price * qty
 
-  // Group variant attribute keys for rendering separate selectors (e.g. "Color", "Talle")
   const attributeKeys = variants.length > 0
     ? Array.from(new Set(variants.flatMap((v) => Object.keys(v.attributes))))
     : []
 
-  /** Build a label string like "Color: Negro" from a variant's attributes */
   function attrDisplayName(slug: string) {
     return attributeLabels[slug] ?? slug
   }
@@ -98,6 +128,28 @@ export default function ProductDetailPage() {
     return Object.entries(v.attributes)
       .map(([k, val]) => `${attrDisplayName(k)}: ${val}`)
       .join(" / ")
+  }
+
+  function selectAttrValue(attrKey: string, val: string) {
+    const next = { ...selectedAttrs, [attrKey]: val }
+    const exact = variants.find((v) => matchesAttrs(v, next))
+    if (exact) {
+      setSelectedAttrs({ ...exact.attributes })
+      return
+    }
+    const fallback = variants.find((v) => v.attributes[attrKey] === val)
+    if (fallback) {
+      setSelectedAttrs({ ...fallback.attributes })
+    }
+  }
+
+  function isValueAvailable(attrKey: string, val: string): boolean {
+    const trial = { ...selectedAttrs, [attrKey]: val }
+    return variants.some(
+      (v) => matchesAttrs(v, trial) && v.stock > 0
+    ) || variants.some(
+      (v) => v.attributes[attrKey] === val && v.stock > 0
+    )
   }
 
   const handleAddToCart = () => {
@@ -110,27 +162,18 @@ export default function ProductDetailPage() {
       id:            product.id,
       slug:          product.slug,
       name:          product.name,
-      price,
+      basePrice,
+      priceTiers:    tiers,
       originalPrice: originalPrice ?? undefined,
       image:         product.image,
       sku:           selected.sku,
       variantLabel:  buildVariantLabel(selected) || undefined,
+      quantity:      qty,
     })
 
-    for (let i = 1; i < qty; i++) {
-      addItem({
-        id:            product.id,
-        slug:          product.slug,
-        name:          product.name,
-        price,
-        originalPrice: originalPrice ?? undefined,
-        image:         product.image,
-        sku:           selected.sku,
-        variantLabel:  buildVariantLabel(selected) || undefined,
-      })
-    }
-
-    toast.success(`${product.name}${selected ? ` (${buildVariantLabel(selected)})` : ""} agregado al carrito`)
+    toast.success(
+      `${product.name}${selected ? ` (${buildVariantLabel(selected)})` : ""} agregado al carrito`
+    )
   }
 
   return (
@@ -197,26 +240,78 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Price */}
-            <div className="flex items-baseline gap-3">
-              <span className="text-4xl font-bold text-foreground">${price.toFixed(2)}</span>
-              {originalPrice && (
-                <>
-                  <span className="text-xl text-muted-foreground line-through">${originalPrice.toFixed(2)}</span>
-                  {discount && discount > 0 && (
-                    <span className="bg-primary/10 text-primary text-sm font-semibold px-2 py-0.5 rounded-lg">
-                      -{discount}%
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-4xl font-bold text-foreground">${price.toFixed(2)}</span>
+                {tierActive && (
+                  <span className="text-xl text-muted-foreground line-through">
+                    ${basePrice.toFixed(2)}
+                  </span>
+                )}
+                {!tierActive && originalPrice && (
+                  <>
+                    <span className="text-xl text-muted-foreground line-through">
+                      ${originalPrice.toFixed(2)}
                     </span>
-                  )}
-                </>
-              )}
+                    {discount && discount > 0 && (
+                      <span className="bg-primary/10 text-primary text-sm font-semibold px-2 py-0.5 rounded-lg">
+                        -{discount}%
+                      </span>
+                    )}
+                  </>
+                )}
+                {tierActive && (
+                  <span className="bg-primary/10 text-primary text-sm font-semibold px-2 py-0.5 rounded-lg">
+                    Precio por cantidad
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Precio por unidad · Total:{" "}
+                <span className="font-semibold text-foreground">${lineTotal.toFixed(2)}</span>
+              </p>
             </div>
+
+            {tiers.length > 0 && (
+              <div className="rounded-xl border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 border-b border-border">
+                      <th className="text-left px-4 py-2 font-medium">Cantidad</th>
+                      <th className="text-right px-4 py-2 font-medium">Precio unitario</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className={!tierActive ? "bg-primary/5" : undefined}>
+                      <td className="px-4 py-2">1+</td>
+                      <td className="px-4 py-2 text-right font-medium">${basePrice.toFixed(2)}</td>
+                    </tr>
+                    {tiers.map((t) => {
+                      const active =
+                        resolveUnitPrice(basePrice, tiers, qty) === t.unitPrice &&
+                        qty >= t.minQty
+                      return (
+                        <tr
+                          key={t.minQty}
+                          className={active ? "bg-primary/10" : undefined}
+                        >
+                          <td className="px-4 py-2">Desde {t.minQty}</td>
+                          <td className="px-4 py-2 text-right font-medium">
+                            ${t.unitPrice.toFixed(2)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Description */}
             <p className="text-muted-foreground text-lg leading-relaxed">{product.description}</p>
 
             {/* Variant selectors */}
             {variants.length > 0 && attributeKeys.map((attrKey) => {
-              // Unique values for this attribute key
               const values = Array.from(
                 new Set(
                   variants
@@ -229,30 +324,26 @@ export default function ProductDetailPage() {
                 <div key={attrKey} className="space-y-2">
                   <p className="text-sm font-semibold text-foreground">
                     {attrDisplayName(attrKey)}
-                    {selected?.attributes[attrKey] && (
-                      <span className="ml-2 text-primary font-normal">{selected.attributes[attrKey]}</span>
+                    {selectedAttrs[attrKey] && (
+                      <span className="ml-2 text-primary font-normal">{selectedAttrs[attrKey]}</span>
                     )}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {values.map((val) => {
-                      // Find variant matching the current selections + this value
-                      const matchingVariant = variants.find(
-                        (v) => v.attributes[attrKey] === val
-                      )
-                      const isSelected = selected?.attributes[attrKey] === val
-                      const outOfStock = matchingVariant ? matchingVariant.stock === 0 : false
+                      const isSelected = selectedAttrs[attrKey] === val
+                      const available = isValueAvailable(attrKey, val)
 
                       return (
                         <button
                           key={val}
-                          disabled={outOfStock}
-                          onClick={() => matchingVariant && setSelected(matchingVariant)}
+                          disabled={!available && !isSelected}
+                          onClick={() => selectAttrValue(attrKey, val)}
                           className={`
                             px-4 py-2 rounded-xl text-sm font-medium border transition-all
                             ${isSelected
                               ? "border-primary bg-primary/10 text-primary"
                               : "border-border bg-secondary text-foreground hover:border-primary/50"}
-                            ${outOfStock ? "opacity-40 cursor-not-allowed line-through" : "cursor-pointer"}
+                            ${!available && !isSelected ? "opacity-40 cursor-not-allowed line-through" : "cursor-pointer"}
                           `}
                         >
                           {val}

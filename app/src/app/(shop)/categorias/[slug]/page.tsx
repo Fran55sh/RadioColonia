@@ -1,13 +1,14 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/db"
-import { products, categories, productVariants } from "@/db/schema"
-import { eq, and, desc, inArray, asc } from "drizzle-orm"
+import { products, categories } from "@/db/schema"
+import { eq, and, desc, inArray } from "drizzle-orm"
 import ProductCard from "@/components/ProductCard"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
+import { cardPriceProps, loadVariantsAndTiers } from "@/lib/listingVariants"
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -74,25 +75,9 @@ export default async function CategoryPage({ params }: Props) {
     )
     .orderBy(desc(products.createdAt))
 
-  const variants = rows.length
-    ? await db
-        .select({
-          productId:  productVariants.productId,
-          sku:        productVariants.sku,
-          salePrice:  productVariants.salePrice,
-          attributes: productVariants.attributes,
-        })
-        .from(productVariants)
-        .where(inArray(productVariants.productId, rows.map((p) => p.id)))
-        .orderBy(asc(productVariants.createdAt))
-    : []
-
-  const variantsByProduct = new Map<string, typeof variants>()
-  for (const variant of variants) {
-    const list = variantsByProduct.get(variant.productId) ?? []
-    list.push(variant)
-    variantsByProduct.set(variant.productId, list)
-  }
+  const { variantsByProduct, tiersByVariantId } = await loadVariantsAndTiers(
+    rows.map((p) => p.id)
+  )
 
   return (
     <div className="py-12">
@@ -135,6 +120,11 @@ export default async function CategoryPage({ params }: Props) {
             {rows.map((product, index) => {
               const productVariantRows = variantsByProduct.get(product.id) ?? []
               const firstVariant = productVariantRows[0]
+              const display = cardPriceProps(
+                product.price,
+                productVariantRows,
+                tiersByVariantId
+              )
               return (
                 <ProductCard
                   key={product.id}
@@ -142,11 +132,9 @@ export default async function CategoryPage({ params }: Props) {
                   slug={product.slug}
                   image={product.image}
                   name={product.name}
-                  price={
-                    firstVariant?.salePrice
-                      ? parseFloat(firstVariant.salePrice)
-                      : parseFloat(product.price)
-                  }
+                  price={display.price}
+                  priceMin={display.priceMin}
+                  priceMax={display.priceMax}
                   originalPrice={product.originalPrice ? parseFloat(product.originalPrice) : undefined}
                   rating={parseFloat(product.rating)}
                   reviews={product.reviews}
@@ -154,6 +142,14 @@ export default async function CategoryPage({ params }: Props) {
                   sku={firstVariant?.sku}
                   variantCount={productVariantRows.length}
                   variantLabel={firstVariant ? variantLabel(firstVariant.attributes) : undefined}
+                  basePrice={
+                    firstVariant?.salePrice
+                      ? parseFloat(firstVariant.salePrice)
+                      : parseFloat(product.price)
+                  }
+                  priceTiers={
+                    firstVariant ? (tiersByVariantId[firstVariant.id] ?? []) : []
+                  }
                   delay={index * 0.05}
                 />
               )

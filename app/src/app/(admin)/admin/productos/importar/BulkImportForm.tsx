@@ -31,7 +31,7 @@ type State =
 type InputMode = "file" | "text"
 
 const CSV_COLUMNS_HINT =
-  "Columnas: handle, name, category_slug, description, cost_price, sale_price, sku (universal), stock, supplier (slug), supplier_code, supplier_stock, attribute_name, attribute_value, image_filename"
+  "Columnas: handle, name, category_slug, description, cost_price, sale_price, sku, stock, supplier, supplier_code, supplier_stock, attribute_name, attribute_value, attribute_2_name, attribute_2_value, attribute_3_name, attribute_3_value, qty_discounts (ej: 10:1100|25:1000), image_filename"
 
 export default function BulkImportForm() {
   const [state, setState] = useState<State>({ status: "idle" })
@@ -220,9 +220,9 @@ export default function BulkImportForm() {
           representan distintos proveedores (códigos internos y costos). Los proveedores deben existir en Admin → Proveedores.
         </p>
         <pre className="text-xs text-silver-light overflow-x-auto bg-background/50 rounded p-3 leading-relaxed">
-{`handle,name,category_slug,description,cost_price,sale_price,sku,stock,supplier,supplier_code,supplier_stock,attribute_name,attribute_value,image_filename
-utp-cat6-2m,Cable UTP,redes,Desc,1200,2500,utp6-020,100,proveedor-a,lta020,100,,,utp.jpg
-utp-cat6-2m,Cable UTP,redes,Desc,1150,2500,utp6-020,80,proveedor-b,121-1200,80,,,utp.jpg`}
+{`handle,name,...,sku,stock,supplier,supplier_code,...,attribute_name,attribute_value,attribute_2_name,attribute_2_value,qty_discounts,image_filename
+utp-cat6-2m,Cable UTP,...,utp6-020,100,proveedor-a,lta020,,,,,,10:2200|50:2000,utp.jpg
+cargador,Cargador,...,CHG-65,40,proveedor-a,CHG-65,,,Capacidad,65W,Voltaje,20V,5:1600,chg.jpg`}
         </pre>
       </div>
     </div>

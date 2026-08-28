@@ -8,24 +8,50 @@ import { Input } from "@/components/ui/input"
 import { createProduct, updateProduct } from "@/server/actions/products"
 import { toast } from "sonner"
 import { Upload, Loader2 } from "lucide-react"
-import type { GlobalAttribute, Product, ProductSupplierOffer, ProductVariant, Supplier } from "@/db/schema"
+import type {
+  GlobalAttribute,
+  Product,
+  ProductSupplierOffer,
+  ProductVariant,
+  ProductVariantPriceTier,
+  ProductPriceTier,
+  QtyDiscountScope,
+  Supplier,
+} from "@/db/schema"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import LinkSupplierCodeForm from "./LinkSupplierCodeForm"
 import ProductVariantsEditor, {
   buildInitialVariants,
   createEmptyVariantRow,
   getEnabledSlugsFromVariants,
+  sharedTiersToPayload,
   variantsToPayload,
   type VariantRow,
 } from "./ProductVariantsEditor"
+import type { ProductPricingInput } from "@/server/actions/products"
+
+function initialSharedTierRows(initial?: ProductPriceTier[]): VariantRow["priceTiers"] {
+  if (!initial?.length) return []
+  return initial.map((t) => ({
+    id:        t.id,
+    minQty:    t.minQty,
+    unitPrice: t.unitPrice ?? "",
+  }))
+}
 
 function initialVariantRows(
   product: Product | undefined,
   initialVariants: ProductVariant[],
   offersByVariantId: Record<string, ProductSupplierOffer[]>,
-  suppliers: Supplier[]
+  tiersByVariantId: Record<string, ProductVariantPriceTier[]>,
+  suppliers: Supplier[],
+  qtyDiscountScope: QtyDiscountScope
 ): VariantRow[] {
-  const built = buildInitialVariants(initialVariants, offersByVariantId)
+  const variantTiers =
+    qtyDiscountScope === "shared"
+      ? {}
+      : tiersByVariantId
+  const built = buildInitialVariants(initialVariants, offersByVariantId, variantTiers)
   if (built.length > 0) return built
   if (!product) return [createEmptyVariantRow(suppliers)]
   return [
@@ -48,6 +74,8 @@ export default function ProductForm({
   product,
   initialVariants = [],
   initialOffersByVariantId = {},
+  initialTiersByVariantId = {},
+  initialSharedTiers = [],
 }: {
   categories:       CategoryOption[]
   globalAttributes: GlobalAttribute[]
@@ -55,6 +83,8 @@ export default function ProductForm({
   product?:         Product
   initialVariants?: ProductVariant[]
   initialOffersByVariantId?: Record<string, ProductSupplierOffer[]>
+  initialTiersByVariantId?: Record<string, ProductVariantPriceTier[]>
+  initialSharedTiers?: ProductPriceTier[]
 }) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -86,11 +116,29 @@ export default function ProductForm({
 
   const effectiveCategoryId = subcategoryId || parentCategoryId || ""
 
+  const initialScope: QtyDiscountScope =
+    product?.qtyDiscountScope === "shared" ? "shared" : "per_variant"
+
   const [variants, setVariants] = useState<VariantRow[]>(() =>
-    initialVariantRows(product, initialVariants, initialOffersByVariantId, suppliers)
+    initialVariantRows(
+      product,
+      initialVariants,
+      initialOffersByVariantId,
+      initialTiersByVariantId,
+      suppliers,
+      initialScope
+    )
   )
   const [enabledAttributeSlugs, setEnabledAttributeSlugs] = useState<string[]>(() =>
     getEnabledSlugsFromVariants(initialVariants)
+  )
+  const [qtyDiscountScope, setQtyDiscountScope] = useState<QtyDiscountScope>(initialScope)
+  const [sharedPriceTiers, setSharedPriceTiers] = useState<VariantRow["priceTiers"]>(() =>
+    initialSharedTierRows(initialSharedTiers)
+  )
+  const [qtyDiscountEnabled, setQtyDiscountEnabled] = useState(() =>
+    initialSharedTiers.length > 0 ||
+    Object.values(initialTiersByVariantId).some((tiers) => tiers.length > 0)
   )
 
   useEffect(() => {
@@ -132,13 +180,19 @@ export default function ProductForm({
       return
     }
 
+    const pricing: ProductPricingInput = {
+      qtyDiscountEnabled,
+      qtyDiscountScope,
+      sharedPriceTiers: sharedTiersToPayload(sharedPriceTiers),
+    }
+
     const totalStock = variantPayload.reduce((sum, v) => sum + v.stock, 0)
     fd.set("stock", String(totalStock))
 
     start(async () => {
       const result = product
-        ? await updateProduct(product.id, fd, variantPayload)
-        : await createProduct(fd, variantPayload)
+        ? await updateProduct(product.id, fd, variantPayload, pricing)
+        : await createProduct(fd, variantPayload, pricing)
 
       if ("error" in result && result.error) {
         setError(
@@ -328,6 +382,12 @@ export default function ProductForm({
           suppliers={suppliers}
           enabledAttributeSlugs={enabledAttributeSlugs}
           onEnabledAttributesChange={setEnabledAttributeSlugs}
+          qtyDiscountEnabled={qtyDiscountEnabled}
+          onQtyDiscountEnabledChange={setQtyDiscountEnabled}
+          qtyDiscountScope={qtyDiscountScope}
+          onQtyDiscountScopeChange={setQtyDiscountScope}
+          sharedPriceTiers={sharedPriceTiers}
+          onSharedPriceTiersChange={setSharedPriceTiers}
           variants={variants}
           onVariantsChange={setVariants}
           minVariants={1}

@@ -2,7 +2,7 @@
 
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from "lucide-react"
 import { Button } from "./ui/button"
-import { useCart } from "@/contexts/CartContext"
+import { useCart, cartKey } from "@/contexts/CartContext"
 import { useEffect } from "react"
 import Link from "next/link"
 
@@ -65,7 +65,8 @@ export default function CartDrawer() {
             ) : (
               <div className="space-y-4">
                 {items.map((item) => {
-                  const key = item.sku ? `${item.id}::${item.sku}` : item.id
+                  const key = cartKey(item)
+                  const tierApplied = Math.abs(item.price - item.basePrice) > 0.009
                   return (
                     <div
                       key={key}
@@ -79,14 +80,21 @@ export default function CartDrawer() {
                         {item.variantLabel && (
                           <p className="text-xs text-primary mb-1">{item.variantLabel}</p>
                         )}
-                        <div className="flex items-center gap-2 mb-3">
+                        <div className="flex items-center gap-2 mb-1">
                           <span className="font-semibold text-foreground">${item.price.toFixed(2)}</span>
-                          {item.originalPrice && (
+                          {tierApplied ? (
+                            <span className="text-xs text-muted-foreground line-through">
+                              ${item.basePrice.toFixed(2)}
+                            </span>
+                          ) : item.originalPrice ? (
                             <span className="text-xs text-muted-foreground line-through">
                               ${item.originalPrice.toFixed(2)}
                             </span>
-                          )}
+                          ) : null}
                         </div>
+                        {tierApplied && (
+                          <p className="text-[10px] text-primary mb-2">Descuento por cantidad</p>
+                        )}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Button

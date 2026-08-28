@@ -6,8 +6,27 @@ import { eq } from "drizzle-orm"
 import { productSchema, type ProductInput } from "@/lib/validators"
 import { formatZodError } from "@/lib/zodErrors"
 import { slugify } from "@/lib/slugify"
-import { syncProductVariants, type VariantPayload } from "@/server/actions/variants"
+import { syncProductVariants, type ProductPricingInput, type VariantPayload } from "@/server/actions/variants"
 import { revalidatePath } from "next/cache"
+
+async function ensureUniqueProductSlug(baseSlug: string): Promise<string> {
+  const normalized = baseSlug || "producto"
+  let candidate = normalized
+  let suffix = 2
+
+  while (true) {
+    const [existing] = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.slug, candidate))
+      .limit(1)
+
+    if (!existing) return candidate
+
+    candidate = `${normalized}-${suffix}`
+    suffix += 1
+  }
+}
 
 function defaultVariantForProduct(
   slug: string,
@@ -21,6 +40,7 @@ function defaultVariantForProduct(
     salePrice: null,
     attributes: {},
     supplierOffers: [],
+    priceTiers: [],
   }
 }
 
@@ -39,9 +59,12 @@ function catalogStockFromVariants(variants: VariantPayload[]): number {
   return variants.reduce((sum, v) => sum + v.stock, 0)
 }
 
+export type { ProductPricingInput } from "@/server/actions/variants"
+
 export async function createProduct(
   formData: FormData,
-  variants?: VariantPayload[]
+  variants?: VariantPayload[],
+  pricing?: ProductPricingInput
 ) {
   const raw = {
     name:          formData.get("name") as string,
@@ -62,7 +85,7 @@ export async function createProduct(
     return { error: formatZodError(parsed.error) }
   }
 
-  const slug = slugify(parsed.data.name)
+  const slug = await ensureUniqueProductSlug(slugify(parsed.data.name))
   const stockTotal = variants?.length
     ? catalogStockFromVariants(variants)
     : parsed.data.stock
@@ -87,7 +110,7 @@ export async function createProduct(
 
   const finalVariants = resolveVariantsToSync(slug, inserted.id, parsed.data, variants)
 
-  const syncResult = await syncProductVariants(inserted.id, finalVariants)
+  const syncResult = await syncProductVariants(inserted.id, finalVariants, pricing)
   if (!syncResult.success) {
     return syncResult
   }
@@ -100,7 +123,8 @@ export async function createProduct(
 export async function updateProduct(
   id: string,
   formData: FormData,
-  variants?: VariantPayload[]
+  variants?: VariantPayload[],
+  pricing?: ProductPricingInput
 ) {
   const raw = {
     name:          formData.get("name") as string,
@@ -150,7 +174,7 @@ export async function updateProduct(
     .where(eq(products.id, id))
 
   if (variantsToSync !== undefined) {
-    const syncResult = await syncProductVariants(id, variantsToSync)
+    const syncResult = await syncProductVariants(id, variantsToSync, pricing)
     if (!syncResult.success) {
       return syncResult
     }

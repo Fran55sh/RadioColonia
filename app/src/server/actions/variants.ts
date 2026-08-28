@@ -1,13 +1,21 @@
 "use server"
 
 import { db } from "@/db"
-import { productSupplierOffers, productVariants, products } from "@/db/schema"
+import {
+  productSupplierOffers,
+  productPriceTiers,
+  productVariantPriceTiers,
+  productVariants,
+  products,
+  type QtyDiscountScope,
+} from "@/db/schema"
 import { and, eq, ilike, inArray, sql } from "drizzle-orm"
 import {
   linkSupplierCodeSchema,
   productVariantSchema,
   supplierOfferSchema,
   type LinkSupplierCodeInput,
+  type PriceTierInput,
   type ProductVariantInput,
   type SupplierOfferInput,
 } from "@/lib/validators"
@@ -17,9 +25,16 @@ import { revalidatePath } from "next/cache"
 
 export type VariantPayload = ProductVariantInput
 
+export type ProductPricingInput = {
+  qtyDiscountEnabled: boolean
+  qtyDiscountScope: QtyDiscountScope
+  sharedPriceTiers: PriceTierInput[]
+}
+
 type ValidatedVariant = ProductVariantInput & {
   attributes: Record<string, string>
   supplierOffers: SupplierOfferInput[]
+  priceTiers: PriceTierInput[]
 }
 
 async function validateVariantPayload(
@@ -55,13 +70,75 @@ async function validateVariantPayload(
     return { ok: false, error: "No puede haber dos ofertas del mismo proveedor en una variante." }
   }
 
+  const priceTiers = parsed.data.priceTiers ?? []
+  const basePrice = parsed.data.salePrice
+  if (basePrice != null) {
+    for (const tier of priceTiers) {
+      if (tier.unitPrice >= basePrice) {
+        return {
+          ok: false,
+          error: `El precio del tramo (desde ${tier.minQty}) debe ser menor al precio de venta del SKU.`,
+        }
+      }
+    }
+  }
+
   return {
     ok: true,
     data: {
       ...parsed.data,
       attributes: attrResult.normalized,
       supplierOffers: offers,
+      priceTiers,
     },
+  }
+}
+
+async function syncPriceTiersForVariant(variantId: string, tiers: PriceTierInput[]) {
+  await db
+    .delete(productVariantPriceTiers)
+    .where(eq(productVariantPriceTiers.variantId, variantId))
+
+  if (tiers.length === 0) return
+
+  const seen = new Set<number>()
+  const values = []
+  for (const t of tiers) {
+    if (seen.has(t.minQty)) continue
+    seen.add(t.minQty)
+    values.push({
+      variantId,
+      minQty:    t.minQty,
+      unitPrice: t.unitPrice.toFixed(2),
+    })
+  }
+
+  if (values.length > 0) {
+    await db.insert(productVariantPriceTiers).values(values)
+  }
+}
+
+async function syncProductPriceTiers(productId: string, tiers: PriceTierInput[]) {
+  await db
+    .delete(productPriceTiers)
+    .where(eq(productPriceTiers.productId, productId))
+
+  if (tiers.length === 0) return
+
+  const seen = new Set<number>()
+  const values = []
+  for (const t of tiers) {
+    if (seen.has(t.minQty)) continue
+    seen.add(t.minQty)
+    values.push({
+      productId,
+      minQty:    t.minQty,
+      unitPrice: t.unitPrice.toFixed(2),
+    })
+  }
+
+  if (values.length > 0) {
+    await db.insert(productPriceTiers).values(values)
   }
 }
 
@@ -149,6 +226,7 @@ export async function createProductVariant(productId: string, data: VariantPaylo
   if (v.supplierOffers.length > 0) {
     await syncSupplierOffersForVariant(inserted.id, v.supplierOffers)
   }
+  await syncPriceTiersForVariant(inserted.id, v.priceTiers)
 
   revalidatePath("/admin/productos")
   revalidatePath(`/admin/productos/${productId}`)
@@ -174,6 +252,7 @@ export async function updateProductVariant(id: string, productId: string, data: 
     .where(eq(productVariants.id, id))
 
   await syncSupplierOffersForVariant(id, v.supplierOffers)
+  await syncPriceTiersForVariant(id, v.priceTiers)
 
   revalidatePath("/admin/productos")
   revalidatePath(`/admin/productos/${productId}`)
@@ -187,7 +266,11 @@ export async function deleteProductVariant(id: string, productId: string) {
   return { success: true }
 }
 
-export async function syncProductVariants(productId: string, variants: VariantPayload[]) {
+export async function syncProductVariants(
+  productId: string,
+  variants: VariantPayload[],
+  pricing?: ProductPricingInput
+) {
   const errors: string[] = []
   const validated: ValidatedVariant[] = []
 
@@ -212,6 +295,46 @@ export async function syncProductVariants(productId: string, variants: VariantPa
 
   if (errors.length > 0) {
     return { error: "Validación de variantes fallida", details: errors }
+  }
+
+  let tierScope: QtyDiscountScope = "per_variant"
+  let sharedTiers: PriceTierInput[] = []
+
+  if (pricing) {
+    tierScope =
+      pricing.qtyDiscountEnabled && pricing.qtyDiscountScope === "shared"
+        ? "shared"
+        : "per_variant"
+    sharedTiers =
+      pricing.qtyDiscountEnabled && tierScope === "shared"
+        ? pricing.sharedPriceTiers
+        : []
+
+    if (tierScope === "shared" && sharedTiers.length > 0) {
+      const [product] = await db
+        .select({ price: products.price })
+        .from(products)
+        .where(eq(products.id, productId))
+        .limit(1)
+      const basePrice = parseFloat(product?.price ?? "0")
+      for (const tier of sharedTiers) {
+        if (tier.unitPrice >= basePrice) {
+          return {
+            error: `El precio del tramo compartido (desde ${tier.minQty}) debe ser menor al precio base del producto.`,
+          }
+        }
+      }
+    }
+
+    await db
+      .update(products)
+      .set({ qtyDiscountScope: tierScope })
+      .where(eq(products.id, productId))
+
+    await syncProductPriceTiers(
+      productId,
+      pricing.qtyDiscountEnabled && tierScope === "shared" ? sharedTiers : []
+    )
   }
 
   const existing = await db
@@ -268,6 +391,11 @@ export async function syncProductVariants(productId: string, variants: VariantPa
     if (variantId) {
       keptIds.push(variantId)
       await syncSupplierOffersForVariant(variantId, v.supplierOffers)
+      const variantTiers =
+        pricing && (!pricing.qtyDiscountEnabled || tierScope === "shared")
+          ? []
+          : v.priceTiers
+      await syncPriceTiersForVariant(variantId, variantTiers)
     }
   }
 

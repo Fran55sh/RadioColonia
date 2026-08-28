@@ -7,16 +7,20 @@ import {
   orderStatusHistory,
   products,
   productVariants,
+  productVariantPriceTiers,
+  productPriceTiers,
   productSupplierOffers,
 } from "@/db/schema"
 import type { OrderStatus } from "@/db/schema"
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm"
 import {
   decrementProductStockTx,
   decrementVariantStockTx,
   InsufficientStockError,
 } from "@/lib/inventory"
 import { mpPreference } from "@/lib/mercadopago"
+import { resolveUnitPrice } from "@/lib/quantityPricing"
+import { resolveVariantTiers } from "@/lib/qtyDiscountScope"
 import { checkoutContactSchema } from "@/lib/validators"
 import type { CheckoutContactInput } from "@/lib/validators"
 import { formatZodError } from "@/lib/zodErrors"
@@ -87,9 +91,48 @@ async function resolveLineItem(item: CartItemInput) {
   }
 
   const variant = variantsForProduct[0]
-  const unitPrice = variant.salePrice
+  const basePrice = variant.salePrice
     ? parseFloat(variant.salePrice)
     : parseFloat(product.price)
+
+  const variantTierRows = await db
+    .select({
+      minQty:    productVariantPriceTiers.minQty,
+      unitPrice: productVariantPriceTiers.unitPrice,
+    })
+    .from(productVariantPriceTiers)
+    .where(eq(productVariantPriceTiers.variantId, variant.id))
+    .orderBy(asc(productVariantPriceTiers.minQty))
+
+  const variantTiers = variantTierRows.map((t) => ({
+    minQty: t.minQty,
+    unitPrice: parseFloat(t.unitPrice),
+  }))
+
+  let sharedTiers: typeof variantTiers = []
+  if (product.qtyDiscountScope === "shared") {
+    const sharedRows = await db
+      .select({
+        minQty:    productPriceTiers.minQty,
+        unitPrice: productPriceTiers.unitPrice,
+      })
+      .from(productPriceTiers)
+      .where(eq(productPriceTiers.productId, product.id))
+      .orderBy(asc(productPriceTiers.minQty))
+
+    sharedTiers = sharedRows.map((t) => ({
+      minQty: t.minQty,
+      unitPrice: parseFloat(t.unitPrice),
+    }))
+  }
+
+  const tiers = resolveVariantTiers(
+    product.qtyDiscountScope === "shared" ? "shared" : "per_variant",
+    sharedTiers,
+    variantTiers
+  )
+
+  const unitPrice = resolveUnitPrice(basePrice, tiers, item.quantity)
 
   if (!pricesMatch(unitPrice, item.price)) {
     return { error: `El precio de "${item.name}" cambió. Actualizá el carrito.` as const }
@@ -272,13 +315,12 @@ export async function createOrder(
       const preference = await mpPreference.create({
         body: {
           external_reference: order.id,
-          items: cartItems.map((item) => ({
-            id:          item.id,
-            title:       item.name,
-            quantity:    item.quantity,
-            unit_price:  item.price,
+          items: resolvedLines.map((line) => ({
+            id:          line.productId,
+            title:       line.name,
+            quantity:    line.quantity,
+            unit_price:  line.unitPrice,
             currency_id: "ARS",
-            picture_url: item.image ? `${appUrl}${item.image}` : undefined,
           })),
           back_urls: {
             success: `${appUrl}/checkout/exito?order=${order.id}`,

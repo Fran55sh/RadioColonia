@@ -4,6 +4,7 @@ import { Heart, ShoppingCart, Star } from "lucide-react"
 import { Button } from "./ui/button"
 import { useState } from "react"
 import { useCart } from "@/contexts/CartContext"
+import type { PriceTier } from "@/lib/quantityPricing"
 import { toast } from "sonner"
 import Image from "next/image"
 import Link from "next/link"
@@ -15,6 +16,8 @@ interface ProductCardProps {
   image:          string
   name:           string
   price:          number
+  priceMin?:      number
+  priceMax?:      number
   originalPrice?: number
   rating:         number
   reviews:        number
@@ -22,17 +25,27 @@ interface ProductCardProps {
   sku?:           string | null
   variantCount?:  number
   variantLabel?:  string
+  basePrice?:     number
+  priceTiers?:    PriceTier[]
   delay?:         number
 }
 
 export default function ProductCard({
   id, slug, image, name, price,
+  priceMin, priceMax,
   originalPrice, rating, reviews,
-  badge, sku, variantCount = 0, variantLabel, delay = 0,
+  badge, sku, variantCount = 0, variantLabel,
+  basePrice, priceTiers = [],
+  delay = 0,
 }: ProductCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const { addItem } = useCart()
   const router = useRouter()
+
+  const showRange =
+    priceMin != null &&
+    priceMax != null &&
+    Math.abs(priceMax - priceMin) > 0.009
 
   const handleAddToCart = () => {
     if (!sku || variantCount !== 1) {
@@ -40,7 +53,19 @@ export default function ProductCard({
       return
     }
 
-    addItem({ id, slug, name, price, originalPrice, image, sku, variantLabel })
+    const unitBase = basePrice ?? price
+    addItem({
+      id,
+      slug,
+      name,
+      price: unitBase,
+      basePrice: unitBase,
+      priceTiers,
+      originalPrice,
+      image,
+      sku,
+      variantLabel,
+    })
     toast.success(`${name} agregado al carrito`)
   }
 
@@ -102,9 +127,15 @@ export default function ProductCard({
           </h3>
         </Link>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-bold text-foreground">${price.toFixed(2)}</span>
-          {originalPrice && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {showRange ? (
+            <span className="text-xl font-bold text-foreground">
+              ${priceMin!.toFixed(2)} – ${priceMax!.toFixed(2)}
+            </span>
+          ) : (
+            <span className="text-xl font-bold text-foreground">${price.toFixed(2)}</span>
+          )}
+          {originalPrice && !showRange && (
             <span className="text-sm text-muted-foreground line-through">${originalPrice.toFixed(2)}</span>
           )}
         </div>
