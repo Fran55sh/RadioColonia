@@ -63,12 +63,20 @@ Subidas de imágenes (admin) se guardan en el volumen **`radiocolonia_uploads`**
 
 ### 2. Recurso migraciones (manual, una vez o tras cambios de schema)
 
-1. **+ New Resource** → **Application** → **Dockerfile** (mismo repo, raíz).
-2. **Build Target** = `migrator`.
-3. **Connect to Predefined Network** activado.
-4. Variables: `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
-5. **Sin dominio público.** Deploy → el contenedor corre `migrate.sh` y termina (exit 0 = OK).
-6. Repetir solo cuando cambies `schema.ts` o migraciones SQL.
+**Recomendado:** usar **`docker-compose.migrator.yml`** (no Dockerfile suelto).
+
+1. **+ New Resource** → **Docker Compose**.
+2. **Base Directory** = `/` (raíz del repo).
+3. **Docker Compose Location** = `/docker-compose.migrator.yml`.
+4. **Connect to Predefined Network** activado (red `coolify`).
+5. Variables: `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
+6. **Sin dominio público.** Deploy → logs: `✅ Migración + seed completados.` → contenedor **Exited (0)**.
+
+El compose usa `restart: "no"`: el migrator **no** es un servicio permanente. Si usás solo Dockerfile con restart automático, Coolify muestra **Running (unknown)** y reinicia en loop porque `migrate.sh` termina y sale.
+
+**Alternativa (Dockerfile):** Build Target = `migrator`, desactivá health check HTTP en Coolify y no uses restart policy `unless-stopped`.
+
+6. Repetir deploy del migrator solo cuando cambies `schema.ts` o migraciones SQL.
 
 ### 3. Recurso Docker Compose (web)
 

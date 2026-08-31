@@ -30,6 +30,7 @@ COPY migrate.sh ./migrate.sh
 # bookworm-slim no trae bash; migrate.sh usa bash ([[ ]] / pipefail).
 RUN apt-get update && apt-get install -y --no-install-recommends bash && rm -rf /var/lib/apt/lists/*
 RUN sed -i 's/\r$//' migrate.sh && chmod +x migrate.sh
+HEALTHCHECK NONE
 CMD ["bash", "migrate.sh"]
 
 # ---- run ----

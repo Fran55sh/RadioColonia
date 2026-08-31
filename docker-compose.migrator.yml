@@ -1,0 +1,28 @@
+# One-shot: corre migrate.sh y termina (NO dejar como servicio permanente).
+# Coolify: Base Directory = /  |  Docker Compose Location = /docker-compose.migrator.yml
+# Tras deploy exitoso el contenedor queda Exited (0). Redeploy manual solo tras cambios de schema.
+# Ver app/docs/DEPLOY.md
+
+name: radiocolonia-migrator
+
+services:
+  migrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    restart: "no"
+    networks:
+      - coolify
+    environment:
+      DB_HOST: ${DB_HOST:?}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?}
+      DB_NAME: ${DB_NAME:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@radiocolonia.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin1234!}
+
+networks:
+  coolify:
+    external: true
