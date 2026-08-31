@@ -177,7 +177,8 @@ Definido en `src/db/schema.ts`. **Las tablas `pos_*` NO están en Drizzle** — 
 | `0008_pos_fiscal_invoicing.sql` | Campos fiscales en `pos_clientes`, `pos_comprobantes_fiscales` |
 | `0009_variant_price_tiers.sql` | Tramos de precio por cantidad (`product_variant_price_tiers`) + columnas staging CSV |
 | `0010_product_qty_discount_scope.sql` | Alcance del descuento: `products.qty_discount_scope` (`per_variant` \| `shared`) + `product_price_tiers` |
-| `0011_normalize_variant_sku_lower.sql` | Normaliza `product_variants.sku` a minúsculas (índice UNIQUE sin `LOWER()` en POS) |
+| `0011_normalize_variant_sku_lower.sql` | Normaliza `product_variants.sku` a minúsculas (índice UNIQUE sin `LOWER()` en POS); fusiona duplicados por mayúsculas |
+| `0012_remove_demo_seed_products.sql` | Elimina productos demo del seed (Pro Max Phone, UltraBook, etc.) |
 
 ### 3.7 Pipeline de migración (`migrate.sh`)
 

@@ -38,91 +38,9 @@ const globalAttributesData = [
   { slug: "capacidad", name: "Capacidad", sortOrder: 4 },
 ]
 
-const productsData = [
-  {
-    slug:          "pro-max-smartphone-256gb",
-    name:          "Pro Max Smartphone 256GB",
-    description:   "The latest flagship smartphone with 256GB storage, triple camera system, and all-day battery life.",
-    price:         "999.99",
-    originalPrice: "1199.99",
-    image:         "/products/product-phone.png",
-    badge:         "Bestseller",
-    stock:         50,
-    rating:        "4.8",
-    reviews:       2341,
-    categorySlug:  "phones",
-  },
-  {
-    slug:          "ultrabook-pro-14-m3",
-    name:          'UltraBook Pro 14" M3 Chip',
-    description:   "Ultra-thin laptop with the M3 chip for incredible performance and up to 18 hours of battery life.",
-    price:         "1499.99",
-    originalPrice: null,
-    image:         "/products/product-laptop.png",
-    badge:         "New",
-    stock:         30,
-    rating:        "4.9",
-    reviews:       1823,
-    categorySlug:  "laptops",
-  },
-  {
-    slug:          "smart-watch-series-x",
-    name:          "Smart Watch Series X",
-    description:   "Advanced smartwatch with health monitoring, GPS, and 18-hour battery life.",
-    price:         "399.99",
-    originalPrice: "449.99",
-    image:         "/products/product-watch.png",
-    badge:         null,
-    stock:         75,
-    rating:        "4.7",
-    reviews:       987,
-    categorySlug:  "smartwatches",
-  },
-  {
-    slug:          "pro-wireless-earbuds-anc",
-    name:          "Pro Wireless Earbuds ANC",
-    description:   "Industry-leading active noise cancellation with premium sound quality and 30-hour total battery.",
-    price:         "179.99",
-    originalPrice: "249.99",
-    image:         "/products/product-earbuds.png",
-    badge:         "Sale",
-    stock:         120,
-    rating:        "4.6",
-    reviews:       3456,
-    categorySlug:  "audio",
-  },
-  {
-    slug:          "elite-gaming-controller-pro",
-    name:          "Elite Gaming Controller Pro",
-    description:   "Professional gaming controller with customizable buttons, hair-trigger locks, and up to 40 hours battery.",
-    price:         "129.99",
-    originalPrice: null,
-    image:         "/products/product-controller.png",
-    badge:         null,
-    stock:         60,
-    rating:        "4.5",
-    reviews:       2109,
-    categorySlug:  "gaming",
-  },
-  {
-    slug:          "studio-headphones-xm5",
-    name:          "Studio Headphones XM5",
-    description:   "Premium over-ear headphones with 30-hour battery, multipoint connection, and exceptional noise cancellation.",
-    price:         "279.99",
-    originalPrice: "399.99",
-    image:         "/products/hero-headphones.png",
-    badge:         "-30%",
-    stock:         80,
-    rating:        "4.9",
-    reviews:       4521,
-    categorySlug:  "audio",
-  },
-]
-
 async function seed() {
-  console.log("🌱 Seeding database...")
+  console.log("🌱 Seeding database (infra only, sin productos demo)...")
 
-  // Global attributes
   for (const attr of globalAttributesData) {
     const existing = await db
       .select()
@@ -138,7 +56,6 @@ async function seed() {
     }
   }
 
-  // Categories
   const categoryMap: Record<string, string> = {}
   for (const cat of categoriesData) {
     const existing = await db
@@ -184,32 +101,6 @@ async function seed() {
     }
   }
 
-  const productIdBySlug: Record<string, string> = {}
-
-  // Products
-  for (const prod of productsData) {
-    const { categorySlug, ...prodData } = prod
-    const existing = await db
-      .select()
-      .from(schema.products)
-      .where(eq(schema.products.slug, prod.slug))
-      .limit(1)
-
-    if (existing.length === 0) {
-      const [inserted] = await db.insert(schema.products).values({
-        ...prodData,
-        categoryId: categoryMap[categorySlug],
-      }).returning({ id: schema.products.id })
-      productIdBySlug[prod.slug] = inserted.id
-      console.log(`  ✓ Product: ${prod.name}`)
-    } else {
-      productIdBySlug[prod.slug] = existing[0].id
-      console.log(`  ~ Product already exists: ${prod.name}`)
-    }
-  }
-
-  // Default supplier for seed data
-  let defaultSupplierId: string | undefined
   const existingSupplier = await db
     .select()
     .from(schema.suppliers)
@@ -217,60 +108,16 @@ async function seed() {
     .limit(1)
 
   if (existingSupplier.length === 0) {
-    const [inserted] = await db
-      .insert(schema.suppliers)
-      .values({
-        name:  "Proveedor sin asignar",
-        slug:  "sin-asignar",
-        notes: "Proveedor por defecto del sistema",
-      })
-      .returning({ id: schema.suppliers.id })
-    defaultSupplierId = inserted.id
+    await db.insert(schema.suppliers).values({
+      name:  "Proveedor sin asignar",
+      slug:  "sin-asignar",
+      notes: "Proveedor por defecto del sistema",
+    })
     console.log("  ✓ Supplier: Proveedor sin asignar")
   } else {
-    defaultSupplierId = existingSupplier[0].id
+    console.log("  ~ Supplier already exists: Proveedor sin asignar")
   }
 
-  // Sample variants for smartphone
-  const phoneId = productIdBySlug["pro-max-smartphone-256gb"]
-  if (phoneId && defaultSupplierId) {
-    const sampleVariants = [
-      { sku: "PHONE-256-BLK", stock: 25, salePrice: "999.99", costPrice: "750.00", supplierCode: "PH-BLK-INT", attributes: { color: "Negro" } },
-      { sku: "PHONE-256-WHT", stock: 25, salePrice: "999.99", costPrice: "750.00", supplierCode: "PH-WHT-INT", attributes: { color: "Blanco" } },
-    ]
-    for (const v of sampleVariants) {
-      const exists = await db
-        .select()
-        .from(schema.productVariants)
-        .where(eq(schema.productVariants.sku, v.sku))
-        .limit(1)
-      if (exists.length === 0) {
-        const [variant] = await db
-          .insert(schema.productVariants)
-          .values({
-            productId:  phoneId,
-            sku:        v.sku,
-            stock:      v.stock,
-            salePrice:  v.salePrice,
-            costPrice:  null,
-            attributes: v.attributes,
-          })
-          .returning({ id: schema.productVariants.id })
-
-        await db.insert(schema.productSupplierOffers).values({
-          variantId:    variant.id,
-          supplierId:   defaultSupplierId,
-          supplierCode: v.supplierCode,
-          costPrice:    v.costPrice,
-          stock:        v.stock,
-          isPreferred:  true,
-        })
-        console.log(`  ✓ Variant: ${v.sku}`)
-      }
-    }
-  }
-
-  // Admin user
   const adminEmail = process.env.ADMIN_EMAIL ?? "admin@radiocolonia.local"
   const adminPassword = process.env.ADMIN_PASSWORD ?? "Admin1234!"
 
