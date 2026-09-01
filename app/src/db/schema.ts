@@ -247,6 +247,7 @@ export const suppliers = pgTable(
     email:       text("email"),
     phone:       text("phone"),
     notes:       text("notes"),
+    cuit:        text("cuit"),
     isActive:    boolean("is_active").notNull().default(true),
     createdAt:   timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt:   timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),

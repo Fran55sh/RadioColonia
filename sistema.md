@@ -320,6 +320,13 @@ src/
 | POST | `/proveedores-productos` | Vincular variante ↔ proveedor |
 | POST | `/ordenes` | Crear orden de compra |
 | GET | `/ordenes/:id` | Detalle OC |
+| GET | `/ordenes` | Listado OC |
+| GET | `/importaciones` | Listado borradores/importaciones |
+| POST | `/importaciones` | Subir PDF |
+| POST | `/importaciones/texto` | Pegar texto OCR |
+| POST | `/importaciones/manual` | Borrador factura manual vacío |
+| PATCH | `/importaciones/:id` | Guardar revisión |
+| POST | `/importaciones/:id/ejecutar` | OC recibida + stock↑ + factura |
 
 #### Contabilidad — `/api/v1/contabilidad`
 
@@ -705,6 +712,7 @@ Prioridad: cerrar el ciclo **compra → stock → venta → reportes** antes de 
 | Ítem | Repo | Estado |
 |------|------|--------|
 | Importación factura PDF → borrador → revisión → ejecutar | POS Backend + FE | **Hecho (MVP)** — `/compras/importar`, tabla `pos_compras_importaciones`, migración `0014` |
+| Factura manual + vínculo código proveedor→SKU + IVA/dto | POS Backend + FE | **Hecho** — `/compras/facturas/nueva`, migración `0015`, creación diferida de proveedor |
 | Recepción OC con `stock↑` + costos + `product_supplier_offers` | POS Backend | **Hecho** vía ejecutar importación (estado `recibida`) |
 | Listado OC / importaciones | POS FE | **Hecho** — `/compras` |
 | Anti-duplicado fiscal (prov+tipo+PV+nro) | DB + Backend | **Hecho** |

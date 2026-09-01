@@ -57,7 +57,14 @@ const REQUIRED_COLUMNS: Array<{ table: string; column: string }> = [
   { table: "pos_facturas_compra", column: "tipo_comprobante" },
   { table: "pos_facturas_compra", column: "punto_venta" },
   { table: "pos_facturas_compra", column: "numero" },
+  { table: "pos_facturas_compra", column: "descuento_total" },
+  { table: "pos_ordenes_compra_lineas", column: "descuento_porcentaje" },
+  { table: "pos_ordenes_compra_lineas", column: "alicuota_iva" },
+  { table: "pos_ordenes_compra_lineas", column: "neto_linea" },
+  { table: "pos_ordenes_compra_lineas", column: "iva_linea" },
+  { table: "pos_ordenes_compra_lineas", column: "total_linea" },
   { table: "pos_compras_importaciones", column: "review_json" },
+  { table: "pos_compras_importaciones", column: "origen" },
 ]
 
 async function verify() {
