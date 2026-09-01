@@ -374,29 +374,49 @@ export async function runBulkImportTransaction(
     const productsInserted = parseInt(prodResult.rows[0]?.count ?? "0", 10)
 
     const varUpsert = await client.query<{ inserted: string; updated: string }>(`
-      WITH upserted AS (
-        INSERT INTO product_variants (product_id, sku, stock, attributes, cost_price, sale_price, margin_percentage)
-        SELECT DISTINCT ON (s.sku)
-          p.id,
+      WITH sku_first AS (
+        SELECT DISTINCT ON (p.id, s.sku)
+          p.id AS product_id,
           s.sku,
+          s.sale_price,
+          COALESCE(s.attributes_json, '{}'::jsonb) AS attributes_json,
           (
             SELECT COALESCE(MAX(s2.stock), 0)
             FROM stg_products_import s2
             WHERE s2.session_id = $1 AND s2.sku = s.sku
-          ),
-          COALESCE(s.attributes_json, '{}'::jsonb),
-          NULL,
-          s.sale_price,
-          NULL
+          ) AS stock,
+          s.id AS staging_id
         FROM stg_products_import s
         JOIN products p ON p.slug = s.handle
         WHERE s.session_id = $1
-        ORDER BY s.sku, s.id
+        ORDER BY p.id, s.sku, s.id
+      ),
+      ranked AS (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY staging_id) - 1 AS sort_order
+        FROM sku_first
+      ),
+      upserted AS (
+        INSERT INTO product_variants (
+          product_id, sku, stock, attributes, cost_price, sale_price, margin_percentage, sort_order
+        )
+        SELECT
+          product_id,
+          sku,
+          stock,
+          attributes_json,
+          NULL,
+          sale_price,
+          NULL,
+          sort_order
+        FROM ranked
         ON CONFLICT (sku) DO UPDATE SET
           sale_price = EXCLUDED.sale_price,
           stock = GREATEST(product_variants.stock, EXCLUDED.stock),
           attributes = EXCLUDED.attributes,
-          cost_price = NULL
+          cost_price = NULL,
+          sort_order = EXCLUDED.sort_order
         RETURNING id, (xmax = 0) AS was_inserted
       )
       SELECT

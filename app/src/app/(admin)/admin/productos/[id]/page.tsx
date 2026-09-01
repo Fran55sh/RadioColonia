@@ -15,6 +15,7 @@ import { getSupplierOffersByProductId } from "@/server/actions/variants"
 import { eq, asc, inArray } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import ProductForm from "../ProductForm"
+import { variantOrderBy } from "@/lib/variantOrder"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -45,7 +46,7 @@ export default async function EditProductoPage({ params }: Props) {
       .select()
       .from(productVariants)
       .where(eq(productVariants.productId, id))
-      .orderBy(asc(productVariants.createdAt)),
+      .orderBy(...variantOrderBy),
     getAllSuppliers(),
     getSupplierOffersByProductId(id),
   ])

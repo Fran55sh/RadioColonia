@@ -180,11 +180,16 @@ export const productVariants = pgTable(
     costPrice:        numeric("cost_price", { precision: 10, scale: 2 }),
     salePrice:        numeric("sale_price", { precision: 10, scale: 2 }),
     marginPercentage: numeric("margin_percentage", { precision: 5, scale: 2 }),
+    sortOrder:        integer("sort_order").notNull().default(0),
     createdAt:        timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => ({
     skuIdx:       uniqueIndex("product_variants_sku_idx").on(table.sku),
     productIdx:   index("product_variants_product_idx").on(table.productId),
+    productSortIdx: index("product_variants_product_sort_idx").on(
+      table.productId,
+      table.sortOrder
+    ),
     stockNonNegative: check(
       "product_variants_stock_non_negative",
       sql`${table.stock} >= 0`,

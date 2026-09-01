@@ -1,7 +1,7 @@
 # Sistema Radio Colonia — Documentación de arquitectura
 
 > Análisis exhaustivo del workspace para referencia futura.  
-> **Última actualización:** 27 agosto 2026  
+> **Última actualización:** 31 agosto 2026  
 > **Workspace:** `Radio coloni aHub/` (no es un repositorio git único; son dos repos independientes)
 
 ---
@@ -179,6 +179,7 @@ Definido en `src/db/schema.ts`. **Las tablas `pos_*` NO están en Drizzle** — 
 | `0010_product_qty_discount_scope.sql` | Alcance del descuento: `products.qty_discount_scope` (`per_variant` \| `shared`) + `product_price_tiers` |
 | `0011_normalize_variant_sku_lower.sql` | Normaliza `product_variants.sku` a minúsculas (índice UNIQUE sin `LOWER()` en POS); fusiona duplicados por mayúsculas |
 | `0012_remove_demo_seed_products.sql` | Elimina productos demo del seed (Pro Max Phone, UltraBook, etc.) |
+| `0013_variant_sort_order.sql` | `product_variants.sort_order` — conserva orden de filas CSV / tabla admin |
 
 ### 3.7 Pipeline de migración (`migrate.sh`)
 
@@ -566,15 +567,18 @@ modules/fiscal/
 3. Certificados homologación en `Backend/certs/` (WSFE habilitado en AFIP)
 4. CUIT emisor + punto de venta dados de alta en homologación
 
-### 7.4 Fuera de v1 (no implementado)
+### 7.4 Fuera de v1 (ver roadmap §9.5)
 
-- Producción ARCA en entorno real (configurable pero no validado end-to-end)
-- PDF / impresión térmica
-- Notas de crédito / débito
-- CAEA (contingencia)
-- Alta de clientes offline
-- IVA por producto desde catálogo (sigue 21% fijo)
-- Consulta padrón AFIP automática al crear cliente
+No implementado; priorizado en hitos del roadmap:
+
+- Producción ARCA E2E → **Hito 4** (después de cola fiscal en Hito 2)
+- PDF / impresión térmica → **Hito 2**
+- Notas de crédito / débito → **Hito 2**
+- CAEA (contingencia) → **Hito 4**
+- Alta de clientes offline → backlog
+- IVA por producto desde catálogo (sigue 21% fijo) → **Hito 4**
+- Consulta padrón AFIP automática al crear cliente → **Hito 4**
+- Cola/vista de comprobantes fallidos → **Hito 2**
 
 ---
 
@@ -617,41 +621,188 @@ El workspace local **no es un monorepo git**; son dos repos hermanos en la misma
 
 ---
 
-## 9. Estado actual y brechas
+## 9. Estado actual, brechas y roadmap
 
-### 9.1 Implementado
+### 9.1 Diagnóstico
+
+Hoy el POS es una **caja omnicanal fuerte**, no un sistema de gestión de comercio.
+
+| Capa | Realidad |
+|------|----------|
+| UI | Casi solo caja (`/login` + `/`): venta, cliente rápido, fiscal, offline, mobile por pasos |
+| Backend | Esqueleto de compras / clientes / analytics / contabilidad; gran parte **sin pantallas** |
+| Inventario | Baja stock al vender; **no sube** al recibir mercadería (OC / factura compra no tocan `product_variants.stock`) |
+| Catálogo | Autoridad en ecommerce admin; el POS lee y vende |
+
+**Agujero de negocio principal:** sin recepción de mercadería el POS no puede ser gestión de inventario/proveedores de un comercio.
+
+**Modelo objetivo:**
+
+```
+┌─────────────────────────────────────────────┐
+│  POS = Caja + Backoffice del local          │
+│  Caja · Inventario · Compras/Prov           │
+│  Clientes · Reportes · Fiscal/IVA           │
+└──────────────────┬──────────────────────────┘
+                   │ misma PostgreSQL
+┌──────────────────▼──────────────────────────┐
+│  Ecommerce = vitrina web + admin catálogo   │
+│  (pedidos online; stock compartido)         │
+└─────────────────────────────────────────────┘
+```
+
+Regla: **una sola verdad de stock** (`product_variants.stock`); el POS deja de ser solo lector y pasa a gestionar proveedores, clientes e inventario del local.
+
+### 9.2 Implementado
 
 - [x] Ecommerce completo (tienda, admin, pedidos pickup)
 - [x] POS caja con catálogo unificado y stock compartido
 - [x] Login POS con PIN compartido + JWT (API cerrada)
 - [x] Precio congelado en ventas offline
 - [x] Advertencia de stock al encolar offline
-- [x] Clientes fiscales + selector en caja
+- [x] Clientes fiscales + selector en caja (alta + búsqueda; sin editar/historial UI)
 - [x] Facturación ARCA homologación (Factura A/B)
 - [x] Modo offline con sincronización
-- [x] APIs compras, contabilidad, analytics (backend)
+- [x] APIs compras, contabilidad, analytics (backend; sin UI)
 - [x] Migraciones POS en autoridad ecommerce
 - [x] Descuento por cantidad (tramos shared / per_variant) en web + POS
 - [x] Multi-atributo de variantes end-to-end (admin, ficha, CSV)
 - [x] Optimización catálogo POS (listado sin subqueries de offers; venta en un round-trip)
 - [x] Normalización SKU minúsculas (migración 0011)
 - [x] Fix tramos qty en POS: carga dual de tablas + `resolveEffectiveTiers`
+- [x] UI mobile caja por pasos (precios → cobro)
 
-### 9.2 Parcial / sin UI
+### 9.3 Parcial / sin UI
 
-- [ ] Frontend para compras, contabilidad, analytics (APIs existen, sin pantallas)
+- [x] Frontend compras: importación PDF + listado OC/importaciones (`/compras`, `/compras/importar`)
+- [ ] Frontend para contabilidad, analytics (APIs existen, sin pantallas)
+- [x] Compras: recepción con stock↑ vía ejecutar importación PDF (OC `recibida`)
+- [ ] Clientes: API tiene GET/PATCH/historial; UI solo list+create
+- [ ] Fiscal: API reintento CAE; UI solo diálogo post-venta
 - [ ] Mercado Pago en ecommerce (código presente, deshabilitado)
+- [ ] “Mercado Pago QR” en caja = etiqueta de medio de pago (sin integración)
 - [ ] Envíos (fulfillment shipping modelado, flujo limitado)
 - [ ] Cajeros individuales / auditoría por operador
+- [ ] Ajuste inventario manual (±) y stock crítico UI (resto Hito 0)
 
-### 9.3 Deuda técnica conocida
+### 9.4 Deuda técnica conocida
 
 - IVA fijo 21% en POS (no lee alícuota por producto del catálogo)
 - `UXUI/` y `plantilla/` en repo ecommerce sin uso en producción
 - Nombres de DB distintos entre entornos (`radiocolonia_db` local vs `postgres` en Coolify) — válido si `DB_*` coinciden en ambos stacks
 - Cola/vista operativa de comprobantes fiscales fallidos (pendiente antes de ARCA producción)
+- Ventas POS (`pos_ventas`) y pedidos web (`orders`) no unificados en reportes
+- Offline puede encolar sobre stock y fallar al sync (`INSUFFICIENT_STOCK`)
+
+### 9.5 Roadmap — POS como gestión de comercio
+
+Prioridad: cerrar el ciclo **compra → stock → venta → reportes** antes de features “nice to have”.
+
+#### Hito 0 — Cerrar el agujero de inventario (P0)
+
+**Meta:** toda entrada y salida de stock queda auditada; las OC dejan de ser decorativas.
+
+| Ítem | Repo | Estado |
+|------|------|--------|
+| Importación factura PDF → borrador → revisión → ejecutar | POS Backend + FE | **Hecho (MVP)** — `/compras/importar`, tabla `pos_compras_importaciones`, migración `0014` |
+| Recepción OC con `stock↑` + costos + `product_supplier_offers` | POS Backend | **Hecho** vía ejecutar importación (estado `recibida`) |
+| Listado OC / importaciones | POS FE | **Hecho** — `/compras` |
+| Anti-duplicado fiscal (prov+tipo+PV+nro) | DB + Backend | **Hecho** |
+| Ajuste de inventario (±) manual | POS Backend + FE | Pendiente |
+| Stock crítico en UI | POS FE | Pendiente |
+
+**Criterio de done (parcial):** cargar PDF de factura con texto, vincular productos y confirmar → stock visible en caja. Ajustes manuales y stock crítico quedan para completar H0.
+
+**Limitaciones parser MVP:** solo texto seleccionable (`pdf-parse`); sin OCR/IA; layouts no AFIP pueden requerir corrección manual de líneas.
+
+#### Hito 1 — Backoffice del local (P0)
+
+**Meta:** el encargado opera proveedores, clientes e inventario sin abrir otra app.
+
+| Ítem | Repo | Notas |
+|------|------|-------|
+| Shell / navegación POS | POS FE | Rutas: `/` caja, `/inventario`, `/compras`, `/clientes`, `/reportes` (mobile-friendly) |
+| Módulo Proveedores UI | POS FE | ABM; CUIT en columna propia (hoy en `notes`); mapa SKU↔proveedor |
+| Módulo Clientes UI | POS FE | Editar, historial (`PATCH`, `GET /:id/historial`) |
+| ABM producto mínimo en POS | POS Backend + FE **o** deep-link admin | Al menos precio, stock, activo/inactivo para operación diaria |
+| Factura compra ↔ recepción | POS Backend | Vincular `pos_facturas_compra` a OC / líneas; no solo cabecera IVA |
+
+**Criterio de done:** un día de local se puede hacer sin entrar al admin ecommerce salvo catálogo rico (imágenes, SEO).
+
+#### Hito 2 — Operación de caja madura (P1)
+
+**Meta:** control de turno, fiscal operable y ticket imprimible.
+
+| Ítem | Repo | Notas |
+|------|------|-------|
+| Cajeros + roles | POS Backend + FE | Reemplazar PIN único a medio plazo; cajero / encargado / admin |
+| Apertura / cierre / arqueo | POS Backend + FE | Efectivo esperado vs contado; ventas del turno |
+| Cola fiscal fallidos | POS FE | Wirear `GET/POST /fiscal/ventas/:id` + reintentar |
+| Impresión ticket | POS FE (+ opcional Backend PDF) | Térmica o PDF simple |
+| Devoluciones / NC | POS Backend + FE | Contra venta → stock↑; fiscal NC si ARCA prod |
+
+**Criterio de done:** se puede cerrar el día con arqueo y reintentar un CAE fallido sin tocar API a mano.
+
+#### Hito 3 — Reportes y contabilidad usable (P1)
+
+**Meta:** pantallas sobre APIs que ya existen.
+
+| Ítem | Repo | Notas |
+|------|------|-------|
+| Dashboard del día | POS FE | `facturacion-dia`, ranking, stock crítico, rentabilidad |
+| Libro IVA ventas/compras UI | POS FE | Filtro fechas + export CSV |
+| Renombrar o integrar MP QR | POS | Hasta integrar: label “Transferencia/QR”; o integrar MP de verdad |
+
+**Criterio de done:** encargado ve ventas del día y exporta IVA sin Postman.
+
+#### Hito 4 — Madurez fiscal y comercial (P2)
+
+| Ítem | Notas |
+|------|-------|
+| IVA por producto / alícuota | Dejar el 21% hardcode; leer del catálogo |
+| ARCA producción E2E | Tras cola fiscal (Hito 2) + certs prod |
+| Listas de precio / cliente mayorista | Más allá de tramos qty |
+| Cuenta corriente proveedor | Pagos vs facturas |
+| Cuenta corriente cliente | Saldo / pagos parciales |
+| Unificar reportes POS + `orders` web | Un panel omnicanal |
+| Padrón AFIP al alta cliente | Opcional |
+| CAEA / contingencia | Solo si operación lo exige |
+
+#### Hito 5 — Ecommerce (paralelo, menor prioridad POS)
+
+| Ítem | Notas |
+|------|-------|
+| Mercado Pago checkout web | Código presente, `ENABLE_MERCADOPAGO` |
+| Envíos / shipping | Modelo parcial |
+| Factura fiscal en pedidos web | Hoy solo POS emite ARCA |
+
+### 9.6 Qué simplificar o no vender como “listo”
+
+| Ítem | Acción |
+|------|--------|
+| APIs compras sin recepción | Marcar experimental hasta Hito 0, o no documentarlas como feature completa |
+| Botón “Mercado Pago QR” | Renombrar o integrar (evitar falsa expectativa) |
+| Analytics / contabilidad sin UI | No incluir en pitch hasta Hito 3 |
+| Seed demo de catálogo en POS prod | Mantener apagado |
+| ERP contable completo | Fuera de alcance; solo libro IVA + export |
+| PIN único | OK v1 un mostrador; planificar cajeros en Hito 2 |
+
+### 9.7 Orden de ejecución sugerido
+
+```
+H0 recepción + ajustes stock
+ → H1 backoffice (prov / clientes / inventario UI)
+   → H2 turnos + fiscal ops + ticket + NC
+     → H3 reportes / IVA UI
+       → H4 alícuotas, ARCA prod, CC, omnicanal reportes
+```
+
+Ecommerce (H5) puede avanzar en paralelo sin bloquear H0–H3.
+
+**Estimación orientativa (1 dev full-time):** H0 ~1–2 sem · H1 ~2–3 sem · H2 ~2–3 sem · H3 ~1 sem · H4 continuo.
 
 ---
+
 
 ## 10. Referencia rápida de archivos clave
 

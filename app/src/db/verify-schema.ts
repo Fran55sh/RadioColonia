@@ -43,6 +43,7 @@ const REQUIRED_TABLES = [
   "pos_ordenes_compra_lineas",
   "pos_facturas_compra",
   "pos_comprobantes_fiscales",
+  "pos_compras_importaciones",
 ]
 
 const REQUIRED_COLUMNS: Array<{ table: string; column: string }> = [
@@ -51,6 +52,12 @@ const REQUIRED_COLUMNS: Array<{ table: string; column: string }> = [
   { table: "orders", column: "customer_email" },
   { table: "orders", column: "preferred_contact_channel" },
   { table: "order_items", column: "sku_snapshot" },
+  { table: "suppliers", column: "cuit" },
+  { table: "pos_ordenes_compra", column: "origen" },
+  { table: "pos_facturas_compra", column: "tipo_comprobante" },
+  { table: "pos_facturas_compra", column: "punto_venta" },
+  { table: "pos_facturas_compra", column: "numero" },
+  { table: "pos_compras_importaciones", column: "review_json" },
 ]
 
 async function verify() {

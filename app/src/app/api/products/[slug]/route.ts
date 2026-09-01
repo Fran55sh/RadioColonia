@@ -10,6 +10,7 @@ import {
 } from "@/db/schema"
 import { eq, inArray, asc } from "drizzle-orm"
 import { resolveVariantTiers } from "@/lib/qtyDiscountScope"
+import { variantOrderBy } from "@/lib/variantOrder"
 import type { QtyDiscountScope } from "@/db/schema"
 
 export async function GET(
@@ -73,7 +74,7 @@ export async function GET(
     })
     .from(productVariants)
     .where(eq(productVariants.productId, product.id))
-    .orderBy(productVariants.createdAt)
+    .orderBy(...variantOrderBy)
 
   const variantIds = variantRows.map((v) => v.id)
   const tierRows = variantIds.length

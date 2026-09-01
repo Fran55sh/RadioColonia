@@ -8,6 +8,7 @@ import {
 import { inArray, asc } from "drizzle-orm"
 import { productPriceDisplay } from "@/lib/productPriceDisplay"
 import { resolveVariantTiers } from "@/lib/qtyDiscountScope"
+import { variantOrderBy } from "@/lib/variantOrder"
 import type { PriceTier } from "@/lib/quantityPricing"
 import type { QtyDiscountScope } from "@/db/schema"
 
@@ -76,7 +77,7 @@ export async function loadVariantsAndTiers(productIds: string[]) {
     })
     .from(productVariants)
     .where(inArray(productVariants.productId, productIds))
-    .orderBy(asc(productVariants.createdAt))
+    .orderBy(...variantOrderBy)
 
   const variantsByProduct = new Map<string, ListingVariant[]>()
   for (const variant of variants) {

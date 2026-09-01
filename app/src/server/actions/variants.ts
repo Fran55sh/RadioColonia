@@ -211,6 +211,12 @@ export async function createProductVariant(productId: string, data: VariantPaylo
   }
 
   const v = result.data
+
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(productVariants)
+    .where(eq(productVariants.productId, productId))
+
   const [inserted] = await db
     .insert(productVariants)
     .values({
@@ -220,6 +226,7 @@ export async function createProductVariant(productId: string, data: VariantPaylo
       attributes: v.attributes,
       costPrice:  null,
       salePrice:  v.salePrice != null ? v.salePrice.toFixed(2) : null,
+      sortOrder:  countRow?.count ?? 0,
     })
     .returning({ id: productVariants.id })
 
@@ -346,7 +353,8 @@ export async function syncProductVariants(
   const existingById = new Map(existing.map((v) => [v.id, v]))
   const keptIds: string[] = []
 
-  for (const v of validated) {
+  for (let i = 0; i < validated.length; i++) {
+    const v = validated[i]
     let variantId: string | undefined
 
     if (v.id && existingById.has(v.id)) {
@@ -359,6 +367,7 @@ export async function syncProductVariants(
           attributes: v.attributes,
           costPrice:  null,
           salePrice:  v.salePrice != null ? v.salePrice.toFixed(2) : null,
+          sortOrder:  i,
         })
         .where(eq(productVariants.id, v.id))
     } else if (existingBySku.has(v.sku)) {
@@ -371,6 +380,7 @@ export async function syncProductVariants(
           attributes: v.attributes,
           costPrice:  null,
           salePrice:  v.salePrice != null ? v.salePrice.toFixed(2) : null,
+          sortOrder:  i,
         })
         .where(eq(productVariants.id, row.id))
     } else {
@@ -383,6 +393,7 @@ export async function syncProductVariants(
           attributes: v.attributes,
           costPrice:  null,
           salePrice:  v.salePrice != null ? v.salePrice.toFixed(2) : null,
+          sortOrder:  i,
         })
         .returning({ id: productVariants.id })
       variantId = inserted.id
